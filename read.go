@@ -93,6 +93,7 @@ func Parse(data []byte) (*Document, error) {
 				// ... Log a complaint?  Empty block names are very silly.
 			}
 			if already, exists := doc.HunksByName[name]; exists {
+				// You can actually ignore this error, and things will even still mostly work.  HunksByName will only look up the first occurence, and Patch will change only the first occurence, and that is weird, but perhaps fine.
 				return &doc, fmt.Errorf("repeated testmark hunk name %q, first seen on line %d, and again on line %d", name, already.LineStart+1, i+1)
 			}
 			expectCodeBlock = true
