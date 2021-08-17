@@ -12,5 +12,5 @@ func TestRead(t *testing.T) {
 		panic(err)
 	}
 	doc, err := ReadFile(filepath.Join(testdata, "example.md"))
-	fmt.Printf("%v -- %v\n", doc.DataHunks, err)
+	fmt.Printf("%v -- %v\n", doc.HunksByName, err)
 }

@@ -2,6 +2,7 @@ package testmark
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -31,7 +32,10 @@ var (
 )
 
 func Parse(data []byte) (*Document, error) {
-	doc := Document{Original: data}
+	doc := Document{
+		Original:    data,
+		HunksByName: make(map[string]Hunk),
+	}
 
 	// Markdown can be effectively parsed line by line.
 	doc.OriginalLines = bytes.Split(data, sigilLineBreak)
@@ -56,6 +60,7 @@ func Parse(data []byte) (*Document, error) {
 				if hunkInProgress.Line > -1 {
 					hunkInProgress.EndLine = i
 					doc.DataHunks = append(doc.DataHunks, hunkInProgress)
+					doc.HunksByName[hunkInProgress.Name] = hunkInProgress
 					hunkInProgress = Hunk{Line: -1}
 				}
 			}
@@ -79,13 +84,16 @@ func Parse(data []byte) (*Document, error) {
 			if nameEnd < 0 {
 				nameEnd = len(remainder)
 			}
-			name := remainder[0:nameEnd]
+			name := string(remainder[0:nameEnd])
 			if len(name) == 0 {
 				// ... Log a complaint?  Empty block names are very silly.
 			}
+			if already, exists := doc.HunksByName[name]; exists {
+				return &doc, fmt.Errorf("repeated testmark hunk name %q, first seen on line %d, and again on line %d", name, already.Line+1, i+1)
+			}
 			expectCodeBlock = true
 			hunkInProgress.Line = i
-			hunkInProgress.Name = string(name)
+			hunkInProgress.Name = name
 		}
 		// Any other text?  It's prose.  No action.
 	}
