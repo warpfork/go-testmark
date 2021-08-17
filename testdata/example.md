@@ -25,7 +25,7 @@ There's also a comment above it, which tells testmark to look at it:
 ```
 
 That comment, coming right before a triple-backtick code block, is a signal.
-It tells textmark to look at the codeblock, and also gives that code block a name.
+It tells testmark to look at the codeblock, and also gives that code block a name.
 
 
 Multiple data hunks per file
