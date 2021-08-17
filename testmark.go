@@ -4,14 +4,16 @@ type Document struct {
 	// The whole thing, complete, but split into lines.
 	// We always save this, because if we are going to write this document back out,
 	// it's going to be by patching this.  (We don't try to understand, much less normalize, a full markdown AST!)
+	// May be nil if this document is the result of Patch operations rather than Parse.
 	Original []byte
 
-	// Original, sliced into lines.  Shares backing memory with Original.
+	// The document, sliced into lines.  Shares backing memory with Original, if Original is non-nil.
 	// Useful because we made it during parse anyway, and it can save us a lot of work during edits.
-	OriginalLines [][]byte
+	Lines [][]byte
 
 	// Each data hunk.
 	// Contains just offset information, and the parsed name header.
+	// Is in order of hunk appearance.
 	DataHunks []DocHunk
 
 	// Like it says on the tin.
@@ -24,10 +26,10 @@ type DocHunk struct {
 	// The code block indicator is necessarily is the following line,
 	// and the code block body one line after that.
 	// N.B. zero-indexed.  You probably want to +1 before printing to a human.
-	Line int
+	LineStart int
 
 	// Index into Document.OriginalLines that contains the closing code block indicator.
-	EndLine int
+	LineEnd int
 
 	Hunk
 }

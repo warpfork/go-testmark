@@ -1,0 +1,82 @@
+package testmark
+
+import (
+	"bytes"
+	"unicode"
+)
+
+func Patch(oldDoc *Document, hunks ...Hunk) (newDoc *Document) {
+	// First pool up the hunk names we've been asked to patch.
+	// We want to go over things in the order already present in the document,
+	// so the order our varargs came in is not relevant nor helpful.
+	//
+	// Also, validate them real quick.
+	// Empty names and names with whitespace are unacceptable.
+	newHunks := make(map[string]Hunk, len(hunks))
+	for _, hunk := range hunks {
+		if hunk.Name == "" || bytes.IndexFunc([]byte(hunk.Name), unicode.IsSpace) >= 0 {
+			panic("hunk name must not be empty and cannot contain whitespace")
+		}
+		newHunks[hunk.Name] = hunk
+	}
+
+	// Mutation is bad.
+	// Immediately start making a new document.
+	// Prep it with about the same amount of memory as the old one.
+	newDoc = &Document{
+		Lines:       make([][]byte, 0, len(oldDoc.Lines)),
+		DataHunks:   make([]DocHunk, 0, len(oldDoc.DataHunks)),
+		HunksByName: make(map[string]DocHunk, len(oldDoc.HunksByName)),
+	}
+
+	// Range over the document and apply patches.
+	// We'll build up a whole new document as we go (byte slices and all!).
+	var leftOff int
+	for _, hunk := range oldDoc.DataHunks {
+		// Copy any prose lines from wherever we left off, up to the start of the new hunk.
+		// And advance the marker for leftOff marker to past the end of the old hunk.
+		newDoc.Lines = append(newDoc.Lines, oldDoc.Lines[leftOff:hunk.LineStart]...)
+		leftOff = hunk.LineEnd + 1
+
+		var newBodyLines [][]byte
+		if newHunk, exists := newHunks[hunk.Name]; exists {
+			// Split our new hunk's body into lines, ready to append to the total content lines.
+			// The rest... copy it into 'hunk', actually, it's a local variable and it makes the code slightly more DRY.
+			newBodyLines = bytes.Split(newHunk.Body, sigilLineBreak)
+			hunk.BlockTag = newHunk.BlockTag
+
+			// Yeet from newHunks, as it's now handled.
+			delete(newHunks, hunk.Name)
+		} else {
+			// Just... keep the old lines, which we can sub-slice back out of the old document.
+			newBodyLines = oldDoc.Lines[hunk.LineStart+2 : hunk.LineEnd]
+		}
+
+		// Append the hunk framing, and the body lines.
+		// Watch how this changes the offsets, so we can build a new DocHunk with info that's correct.
+		// (If you're just going to serialize this, it wouldn't matter, but if you want to patch multiple times, it matters.)
+		newLineStart := len(newDoc.Lines)
+		newDoc.Lines = append(newDoc.Lines, bytes.Join([][]byte{sigilTestmark, []byte(hunk.Name)}, nil))
+		newDoc.Lines = append(newDoc.Lines, bytes.Join([][]byte{sigilCodeBlock, []byte(hunk.BlockTag)}, nil))
+		newDoc.Lines = append(newDoc.Lines, newBodyLines...)
+		newDoc.Lines = append(newDoc.Lines, sigilCodeBlock)
+		newLineEnd := len(newDoc.Lines)
+		docHunk := DocHunk{
+			LineStart: newLineStart,
+			LineEnd:   newLineEnd,
+			Hunk:      hunk.Hunk,
+		}
+		// Append the updated hunk info to newDoc.
+		newDoc.DataHunks = append(newDoc.DataHunks, docHunk)
+		newDoc.HunksByName[hunk.Name] = docHunk
+	}
+
+	// Copy any remaining trailing prose lines.
+	newDoc.Lines = append(newDoc.Lines, oldDoc.Lines[leftOff:]...)
+
+	// Now for any hunks we have left... We'll just stick them on the end, I guess.
+	// And *now* the dang order of our original args matters.  We wouldn't want this to be randomized.
+	// TODO
+
+	return
+}

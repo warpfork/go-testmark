@@ -38,7 +38,7 @@ func Parse(data []byte) (*Document, error) {
 	}
 
 	// Markdown can be effectively parsed line by line.
-	doc.OriginalLines = bytes.Split(data, sigilLineBreak)
+	doc.Lines = bytes.Split(data, sigilLineBreak)
 
 	// The first layer of our parse is "is this in a code block".
 	// Code blocks are the only feature of markdown that meaningfully changes what mode you're in at the start of a line.
@@ -48,8 +48,8 @@ func Parse(data []byte) (*Document, error) {
 	var inCodeBlock bool
 	var expectCodeBlock bool
 	var codeBlockOffset int
-	hunkInProgress := DocHunk{Line: -1}
-	for i, line := range doc.OriginalLines {
+	hunkInProgress := DocHunk{LineStart: -1}
+	for i, line := range doc.Lines {
 		// Check for transition in or out of codeblock.
 		if bytes.HasPrefix(line, sigilCodeBlock) {
 			switch inCodeBlock {
@@ -60,12 +60,12 @@ func Parse(data []byte) (*Document, error) {
 				}
 				expectCodeBlock = false
 			case true: // ending a block
-				if hunkInProgress.Line > -1 {
-					hunkInProgress.EndLine = i
+				if hunkInProgress.LineStart > -1 {
+					hunkInProgress.LineEnd = i
 					hunkInProgress.Body = doc.Original[codeBlockOffset:offset]
 					doc.DataHunks = append(doc.DataHunks, hunkInProgress)
 					doc.HunksByName[hunkInProgress.Name] = hunkInProgress
-					hunkInProgress = DocHunk{Line: -1}
+					hunkInProgress = DocHunk{LineStart: -1}
 				}
 			}
 			inCodeBlock = !inCodeBlock
@@ -93,10 +93,10 @@ func Parse(data []byte) (*Document, error) {
 				// ... Log a complaint?  Empty block names are very silly.
 			}
 			if already, exists := doc.HunksByName[name]; exists {
-				return &doc, fmt.Errorf("repeated testmark hunk name %q, first seen on line %d, and again on line %d", name, already.Line+1, i+1)
+				return &doc, fmt.Errorf("repeated testmark hunk name %q, first seen on line %d, and again on line %d", name, already.LineStart+1, i+1)
 			}
 			expectCodeBlock = true
-			hunkInProgress.Line = i
+			hunkInProgress.LineStart = i
 			hunkInProgress.Name = name
 		}
 		// Any other text?  It's prose.  No action.

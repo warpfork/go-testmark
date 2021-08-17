@@ -71,3 +71,5 @@ you can't easily describe data that doesn't have a trailing linebreak.
 ```
 A markdown codeblock always has a trailing linebreak before its close indicator, you see.
 ```
+
+That's a problem in many formats though, frankly.
