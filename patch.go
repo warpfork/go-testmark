@@ -56,10 +56,7 @@ func Patch(oldDoc *Document, hunks ...Hunk) (newDoc *Document) {
 		// Watch how this changes the offsets, so we can build a new DocHunk with info that's correct.
 		// (If you're just going to serialize this, it wouldn't matter, but if you want to patch multiple times, it matters.)
 		newLineStart := len(newDoc.Lines)
-		newDoc.Lines = append(newDoc.Lines, bytes.Join([][]byte{sigilTestmark, []byte(hunk.Name)}, nil))
-		newDoc.Lines = append(newDoc.Lines, bytes.Join([][]byte{sigilCodeBlock, []byte(hunk.BlockTag)}, nil))
-		newDoc.Lines = append(newDoc.Lines, newBodyLines...)
-		newDoc.Lines = append(newDoc.Lines, sigilCodeBlock)
+		newDoc.Lines = appendHunkLines(newDoc.Lines, hunk.Name, hunk.BlockTag, newBodyLines)
 		newLineEnd := len(newDoc.Lines)
 		docHunk := DocHunk{
 			LineStart: newLineStart,
@@ -76,7 +73,28 @@ func Patch(oldDoc *Document, hunks ...Hunk) (newDoc *Document) {
 
 	// Now for any hunks we have left... We'll just stick them on the end, I guess.
 	// And *now* the dang order of our original args matters.  We wouldn't want this to be randomized.
-	// TODO
+	for _, hunk := range hunks {
+		// If it was already done, skip it.
+		if _, stillTodo := newHunks[hunk.Name]; !stillTodo {
+			continue
+		}
+		// If we're about to need to append something, make sure there's at least one blank line first.
+		if len(newDoc.Lines[len(newDoc.Lines)-1]) > 0 {
+			newDoc.Lines = append(newDoc.Lines, []byte{})
+		}
+		// Append it.
+		newDoc.Lines = appendHunkLines(newDoc.Lines, hunk.Name, hunk.BlockTag, bytes.Split(hunk.Body, sigilLineBreak))
+		// And one more trailing line, at the end.
+		newDoc.Lines = append(newDoc.Lines, []byte{})
+	}
 
 	return
+}
+
+func appendHunkLines(lines [][]byte, hunkName string, hunkBlockTag string, hunkBodyLines [][]byte) [][]byte {
+	lines = append(lines, bytes.Join([][]byte{sigilTestmark, []byte(hunkName)}, nil))
+	lines = append(lines, bytes.Join([][]byte{sigilCodeBlock, []byte(hunkBlockTag)}, nil))
+	lines = append(lines, hunkBodyLines...)
+	lines = append(lines, sigilCodeBlock)
+	return lines
 }
