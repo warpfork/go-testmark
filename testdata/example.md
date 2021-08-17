@@ -10,7 +10,7 @@ They're freetext, and you can use markdown to describe whatever you want.
 
 Except these:
 
-[testmark]:# this-is-the-data-name
+[testmark]:# (this-is-the-data-name)
 ```text
 the content of this code block is data which can be read,
 and *replaced*, by testmark.
@@ -21,7 +21,7 @@ I mean, it is -- but be sure to look at this file in a "raw" mode.
 There's also a comment above it, which tells testmark to look at it:
 
 ```
-[testmark]:# this-is-the-data-name
+[testmark]:# (this-is-the-data-name)
 ```
 
 That comment, coming right before a triple-backtick code block, is a signal.
@@ -33,7 +33,7 @@ Multiple data hunks per file
 
 You can have more than one block like that in a file:
 
-[testmark]:# more-data
+[testmark]:# (more-data)
 ```go
 func OtherMarkdownParsers() (shouldHighlight bool) {
 	return true
@@ -67,7 +67,7 @@ One note
 There is one thing this format is bad at:
 you can't easily describe data that doesn't have a trailing linebreak.
 
-[testmark]:# cannot-describe-no-linebreak
+[testmark]:# (cannot-describe-no-linebreak)
 ```
 A markdown codeblock always has a trailing linebreak before its close indicator, you see.
 ```

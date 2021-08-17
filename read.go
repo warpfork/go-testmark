@@ -83,19 +83,30 @@ func Parse(data []byte) (*Document, error) {
 		}
 		// Look for testmark block indicators.
 		if bytes.HasPrefix(line, sigilTestmark) {
+			// If this line, after the sigil prefix, doesn't begin with "(" and end with ")", it's not a well-formed markdown comment, and you should probably be told about that.
 			remainder := line[len(sigilTestmark):]
+			if len(remainder) < 2 || remainder[0] != '(' || remainder[len(remainder)-1] != ')' {
+				return &doc, fmt.Errorf("invalid markdown comment on line %d (should look like %q, mind the parens)", i+1, "[testmark]:# (data-name-here)")
+			}
+			remainder = remainder[1 : len(remainder)-1]
+
+			// Parse the name.  If there's whitespace inside here, we'll just quietly stop at that.  Maybe we'll do extensions with that info space in the future.
 			nameEnd := bytes.IndexFunc(remainder, unicode.IsSpace)
 			if nameEnd < 0 {
 				nameEnd = len(remainder)
 			}
 			name := string(remainder[0:nameEnd])
 			if len(name) == 0 {
-				// ... Log a complaint?  Empty block names are very silly.
+				return &doc, fmt.Errorf("invalid markdown comment on line %d, hunk name is empty", i+1)
 			}
+
+			// Error if the hunk name is repeated.
 			if already, exists := doc.HunksByName[name]; exists {
 				// You can actually ignore this error, and things will even still mostly work.  HunksByName will only look up the first occurence, and Patch will change only the first occurence, and that is weird, but perhaps fine.
 				return &doc, fmt.Errorf("repeated testmark hunk name %q, first seen on line %d, and again on line %d", name, already.LineStart+1, i+1)
 			}
+
+			// Okay: hunk started (probably), name is parsed out, we expect a code block to start on the next line, cool.
 			expectCodeBlock = true
 			hunkInProgress.LineStart = i
 			hunkInProgress.Name = name
