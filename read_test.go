@@ -12,5 +12,7 @@ func TestRead(t *testing.T) {
 		panic(err)
 	}
 	doc, err := ReadFile(filepath.Join(testdata, "example.md"))
-	fmt.Printf("%v -- %v\n", doc.HunksByName, err)
+	for _, hunk := range doc.DataHunks {
+		fmt.Printf("hunk %q is on lines %d:%d, has body %q\n", hunk.Name, hunk.Line+1, hunk.EndLine+1, string(hunk.Body))
+	}
 }

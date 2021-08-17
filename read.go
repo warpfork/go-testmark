@@ -34,7 +34,7 @@ var (
 func Parse(data []byte) (*Document, error) {
 	doc := Document{
 		Original:    data,
-		HunksByName: make(map[string]Hunk),
+		HunksByName: make(map[string]DocHunk),
 	}
 
 	// Markdown can be effectively parsed line by line.
@@ -44,9 +44,11 @@ func Parse(data []byte) (*Document, error) {
 	// Code blocks are the only feature of markdown that meaningfully changes what mode you're in at the start of a line.
 	// After that, we look for our magic prefix (on any lines that *aren't* already in a code block).
 	// Then, the rest is... pretty straightforward.
+	var offset int
 	var inCodeBlock bool
 	var expectCodeBlock bool
-	hunkInProgress := Hunk{Line: -1}
+	var codeBlockOffset int
+	hunkInProgress := DocHunk{Line: -1}
 	for i, line := range doc.OriginalLines {
 		// Check for transition in or out of codeblock.
 		if bytes.HasPrefix(line, sigilCodeBlock) {
@@ -54,22 +56,24 @@ func Parse(data []byte) (*Document, error) {
 			case false: // starting a block
 				if expectCodeBlock {
 					hunkInProgress.BlockTag = string(line[len(sigilCodeBlock):])
+					codeBlockOffset = offset + len(line) + 1
 				}
 				expectCodeBlock = false
 			case true: // ending a block
 				if hunkInProgress.Line > -1 {
 					hunkInProgress.EndLine = i
+					hunkInProgress.Body = doc.Original[codeBlockOffset:offset]
 					doc.DataHunks = append(doc.DataHunks, hunkInProgress)
 					doc.HunksByName[hunkInProgress.Name] = hunkInProgress
-					hunkInProgress = Hunk{Line: -1}
+					hunkInProgress = DocHunk{Line: -1}
 				}
 			}
 			inCodeBlock = !inCodeBlock
-			continue
+			goto next
 		}
 		// If we're in a code block, just fly by.
 		if inCodeBlock {
-			continue
+			goto next
 		}
 		// If we were expecting a code block just now, we didn't get it.
 		if expectCodeBlock {
@@ -96,6 +100,10 @@ func Parse(data []byte) (*Document, error) {
 			hunkInProgress.Name = name
 		}
 		// Any other text?  It's prose.  No action.
+	next:
+		// Track total offset, so we can use it to subslice out document hunks.
+		// Mind: this is going to be off by one at the very end of the file... but that turns out never to matter to us.
+		offset += len(line) + 1
 	}
 	return &doc, nil
 }

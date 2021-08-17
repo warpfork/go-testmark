@@ -12,13 +12,14 @@ type Document struct {
 
 	// Each data hunk.
 	// Contains just offset information, and the parsed name header.
-	DataHunks []Hunk
+	DataHunks []DocHunk
 
 	// Like it says on the tin.
-	HunksByName map[string]Hunk
+	HunksByName map[string]DocHunk
 }
 
-type Hunk struct {
+// DocHunk is the Document's internal idea of where hunks are.
+type DocHunk struct {
 	// Index into Document.OriginalLines where the comment block is found.
 	// The code block indicator is necessarily is the following line,
 	// and the code block body one line after that.
@@ -28,6 +29,12 @@ type Hunk struct {
 	// Index into Document.OriginalLines that contains the closing code block indicator.
 	EndLine int
 
+	Hunk
+}
+
+// Hunk is a simple tuple of hunk name string and body bytes.
+// Optionally, it may also have a BlockTag (which is whatever markdown has in the code block; usually, in practice, this is used to state a syntax for highlighting, which does not have much to do with testmark.)
+type Hunk struct {
 	// The hunk name (e.g. whatever comes after `[testmark]:# ` and before any more whitespace).
 	// Cannot be empty.
 	Name string
@@ -35,4 +42,8 @@ type Hunk struct {
 	// The code block syntax hint (or more literally: anything that comes after the triple-tick that starts the code block).
 	// Usually we don't encourage use of this much in testmark, but it's here.  Can be empty.
 	BlockTag string
+
+	// The full body of the hunk, as bytes.
+	// (This is *still* a subslice of Document.Original, if this hunk was created by Parse, but probably a unique slice otherwise.)
+	Body []byte
 }
