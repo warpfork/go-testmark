@@ -106,3 +106,18 @@ License
 
 SPDX-License-Identifier: Apache-2.0 OR MIT
 
+
+Acknowledgements
+----------------
+
+This is probably inspired by a lot of things.  (Mostly my own failings.  But hey.  Those *do* teach you something.)
+
+- It's probably inspired heavily by rvagg's work on making IPLD Schema DSL parsers, which could parse content out of markdown codeblocks, and did this for similar "being able to embed the real data in the docs is cool" reasons.
+  (That work differs slightly, in that that system just ran with the code block syntax tag hint, and also, has no patching capabilities, and also, aggregated all the data rather than making it accessible as named blocks.  But the goals and reasons are very similar!)
+- It's probably inspired a bit by campoy's [`embedmd`](https://github.com/campoy/embedmd) tool.
+  (That work uses markdown comments in a similar way.  Testmark differs in that it's meant for programmatic patching rather than use as a file-wangling tool, and also programmating reading; and that it treats the markdown file as the source of truth, rather than a terminal output.)
+- It's influenced by "[taffy](https://github.com/warpfork/go-taffy)", another test fixture format I wrote not long before this one.
+  (Taffy didn't get very far.  It was special for no reason.  Technically, it's "more correct" than testmark, because you can put *any* data in it.  But: describing things attractively within the taffy format was basically impossible.  That turns out to kill.  This lesson informed the idea for testmark.)
+- It's also influenced by an even older attempt at test fixture format called [wishfix](https://github.com/warpfork/go-wish/blob/master/wishfix/format.md) ([example](https://github.com/polydawn/repeatr/blob/d581713218bad916aee5b67a55e93806bb8873f2/examples/hello-cached.tcase)).
+  (You can see the "it should be attractive" rule applied more strongly in wishfix than in taffy; and yet, still, a lack of flexibility about formatting.  The lesson to learn was again: don't be special; just use a format that's already capable of being decorative.)
+- Probably other things as well.  A lot of test fixture formats have passed, however briefly, through my brain over the years.  My apologies for any acknowledgements forgotten.
