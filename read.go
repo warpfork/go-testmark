@@ -18,11 +18,12 @@ func Read(r io.Reader) (*Document, error) {
 }
 
 func ReadFile(name string) (*Document, error) {
-	data, err := os.ReadFile(name)
+	f, err := os.Open(name)
 	if err != nil {
 		return nil, err
 	}
-	return Parse(data)
+	defer f.Close()
+	return Read(f)
 }
 
 var (
