@@ -18,6 +18,11 @@ type Document struct {
 
 	// Like it says on the tin.
 	HunksByName map[string]DocHunk
+
+	// An index over the hunks, which treats their names as if they were unix-style paths --
+	// meaning they're split by slashes, and each segment is considered a directory.
+	// You must call the `BuildDirIndex()` function to cause this to be populated.
+	DirEnt *DirEnt
 }
 
 // DocHunk is the Document's internal idea of where hunks are.
@@ -48,4 +53,19 @@ type Hunk struct {
 	// The full body of the hunk, as bytes.
 	// (This is *still* a subslice of Document.Original, if this hunk was created by Parse, but probably a unique slice otherwise.)
 	Body []byte
+}
+
+// DirEnt describes an index over hunks in a document that acts much like a filesystem.
+// See Document.BuildDirIndex for details.
+type DirEnt struct {
+	// The name of just this path segment.
+	// (Note that if there's a Hunk in this DirEnt, its name may be different -- it still has the *full* path name.)
+	Name string
+
+	// A hunk, or nil.
+	Hunk *Hunk
+
+	// Children, recursively.
+	Children     map[string]*DirEnt
+	ChildrenList []DirEnt
 }
