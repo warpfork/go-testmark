@@ -74,6 +74,8 @@ and now your documentation misleads users, and adoption drops and frustration ri
 - Because testmark is "just markdown", you get all the other tools that work on markdown, for free.  For example, that tasty, tasty syntax highlighting.
   There's no smoother way to getting pretty example data on a website and getting it directly used in tests at the same time.
   (No fancy website or publishing tool pipeline needed, either.  You can just use github readme files -- just like this one!)
+- Because testmark is "just markdown", you can probably hand people links that jump them directly to headings in your fixtures files.
+  Users who need those references will appreciate this; you who authors the fixtures and specs will probably take joy from being able to point directly at your latest work.
 - Because more than one code block can be in a file, and you can tag them with names, you can cram many fixtures in one file.  (Or not.  Up to you.)
 - Because it's machine-parsable, we can have tools and libraries that programmatically update the data blocks, too.
   And because testmark interacts with the markdown format in a very deterministic and well-bounded way, your markdown prose stays exactly where you put it, too.
