@@ -1,15 +1,41 @@
 go-testmark
 ===========
 
-Wanna write test fixtures and example data in a language-agnostic way?
+Do you need test fixtures and example data for your project, in a language agnostic way?
 
-Wanna be able to display those fixtures and examples in the middle of the docs you're already writing?
+Do you want it to be easy to combine with documentation, and easy for others to read?
 
-Wanna be confident that your docs are also actually telling the truth, because your tests are executing directly on the example data in the docs?
+Do you want those fixtures to be easy to maintain, because they're programmatically parsable, and programmatically patchable?
 
-Are those docs already in markdown, and all you need is some glue code to read it (and maybe even patch it) programmatically?
+Do you want to be able to display those fixtures and examples in the middle of the docs you're already writing?
+(Are those docs already in markdown, and all you need is some glue code to make those code blocks sing?)
 
-Welcome to `testmark`.  You might like it.
+You're looking for `testmark`.  And you found it.
+
+This is `go-testmark`, a library implementing a parser (and patcher!) for the `testmark` format,
+which is itself a subset of markdown that you can use anywhere you're already using markdown.
+
+It'll make your code blocks sing.
+
+Read on:
+
+---
+
+- [The Testmark Format](#what-is-the-testmark-format)
+	- [Examples](#testmark-format-by-example)
+	- [Purpose](#the-purpose-of-testmark)
+- [The go-testmark Library](#this-is-go-testmark)
+	- [Features](#features)
+		- [Parsing](#parsing)
+		- [Walking](#walking-and-indexing)
+		- [Patching](#patching)
+		- [Writing](#writing)
+	- [Examples](#examples)
+		- [Examples in the Wild](#examples-in-the-wild)
+- [License](#license)
+- [Acknowledgements](#acknowledgements)
+
+---
 
 
 What is the testmark format?
@@ -89,18 +115,84 @@ This is go-testmark
 
 This is a golang library that implements a parser, a patcher, and a writer for the testmark format.
 
-It works in the simplest way possible, while ignoring the actual markdown content as completely as possible.
-(Simple is good.  And it turns out it's possible to parse testmark data out, and even patch the testmark data blocks, without a complete markdown parser.)
+You should be able to look at the [godoc](https://pkg.go.dev/github.com/warpfork/go-testmark) for about five seconds and figure it out.  There's not much to it.
+
+### Features
+
+#### parsing
+
+`go-testmark` can parse any markdown file and look for testmark data hunks.
 
 When you've parsed a testmark file, you can iterate over all the data hunks in it, and see their names, or look up them up by name.
+
+Parsing works in the simplest way possible.
+It only looks at the code blocks tagged as testmark.
+(It actually ignores the actual markdown content as completely as possible.
+Simple is good.  And it turns out it's possible to parse testmark data out,
+and even later support patching the testmark data blocks, without a complete markdown parser.)
+
+#### walking and indexing
+
+You can range linearly over the slice of parsed hunks in a `Document` once you've parsed it.
+
+Each hunk has a name (from the testmark comment),
+a body (the blob from inside the code block),
+and optionally may have the code block's tag (if any; usually this is already used by other people, for syntax highlighting indicators).
+
+If you use hunk names that look like filesystem paths (e.g. "foo/bar/baz", with slashes),
+you can also get an indexed view that lets you easily walk it as if it was directories.
+Just call [Document.BuildDirIndex](https://pkg.go.dev/github.com/warpfork/go-testmark#Document.BuildDirIndex).
+("Directories" for names with many segments will be created implicitly; it's very low friction.)
+
+Once you've built a directory index, you can range over `DirEnt` either as an ordered list of its contents,
+or look things up by path segment like a map.
+
+#### patching
 
 When using the patch operation, the markdown you wrote will be maintained by the operation; only the testmark data blocks change.
 (No markdown gets reformated; nothing tries to normalize anything.  Whatever you write is safe.
 Use whatever other markdown extensions you like; we're not gonna error if there's something fancy we didn't expect.  It's chill.)
 
-You should be able to look at the godoc for about five seconds and figure it out.  There's not much to it.
+Patching is _really_ simple.  It looks like this:
+
+```go
+doc, err := testmark.ReadFile("example.md")
+doc = testmark.Patch(doc,
+	testmark.Hunk{Name: "more-data", BlockTag: "text", Body: []byte("you have been...\nreplaced.\nand gotten\nrather longer.")},
+	testmark.Hunk{Name: "this-is-the-data-name", BlockTag: "", Body: []byte("this one gets shorter.")},
+	testmark.Hunk{Name: "this-one-is-new", BlockTag: "json", Body: []byte(`{"hayo": "new data!"}`)},
+	testmark.Hunk{Name: "so-is-this", BlockTag: "json", Body: []byte(`{"appending": "is fun"}`)},
+)
+fmt.Printf("%s", doc.String())
+```
+
+(That's real code from our tests, and it applies on the `example.md` file in the [testdata](testdata) directory.)
+
+#### writing
+
+`go-testmark` can write back out a document that it's holding in memory.
+
+You'll produce these by parsing, and by patching.
+
+It's not really encouraged to try to create a new document purely via the `go-testmark` APIs.
+We don't offer any APIs for writing and formatting markdown _outside_ of the testmark data blocks;
+it's better to just write that yourself, in an editor or with other tools fit for the purpose.
+
+(You probably can start with an empty document and just patch hunk into it, and it'll be fine.
+It's just dubious if you'll really want to do that in practice.)
+
+### Examples
 
 Check out the [`patch_test.go`](patch_test.go) file for an example of what updating a testmark file looks like with this library.
+
+#### Examples in the Wild
+
+Check out how the IPLD project uses testmark:
+
+- This document is both prose documentation for humans, and full of testmark data (using directory naming conventions for the hunk names, too):
+  [ipld/specs/selectors/selector-fixtures-1](https://github.com/ipld/ipld/blob/17fd0efb695eb4933a68ca55d48c8e1dd765734b/specs/selectors/fixtures/selector-fixtures-1.md)
+- This code reads that document, and in a handful of lines, iterates over the "directories" of hunks, and then plucks data out of them:
+  [go-ipld/selector/spec_test.go](https://github.com/ipld/go-ipld-prime/blob/5c39e6803594f599a85d2545ad72faf584bf6f19/traversal/selector/spec_test.go#L29-L39)
 
 
 License
