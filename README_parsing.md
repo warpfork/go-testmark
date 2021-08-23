@@ -98,3 +98,7 @@ This is a very nice approach because we have (again) completely avoided parsing 
 and thus the operations have been very simple, very fast, and very foolproof.
 This algorithm works exactly correctly no matter what other markdown extensions people may be using in their documents,
 and will never rewrite anything except the testmark data blocks, and thus follows "the principle of least surprise" very well.
+
+You can see a golang implementation of this in [patch.go](patch.go) if the example is helpful.
+It is again less than 100 lines, and nearly 50% of them comments.
+It also includes efficient batching application many patches at once.
