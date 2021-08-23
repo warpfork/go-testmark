@@ -47,6 +47,14 @@ Your markdown documents can also be testmark documents!
 
 Testmark data is contained in a markdown codeblock -- you know, the things that start and end with triple-backticks.
 
+Testmark data is labled by a markdown comment.
+
+This means you can easily embed large blocks of data in a markdown file,
+and give them whatever label is appropriate,
+and do this seamlessly in a document you're also writing for a human audience.
+
+This makes for great development of test fixtures, specs, and documentation, all in one.
+
 ### testmark format by example
 
 You see markdown code blocks all the time.  They render like this:
@@ -72,9 +80,19 @@ The comment looks like this:
 ... and then the triple-backticks go right after that.
 Data follows until the next line starting with triple-backticks, as is usual in markdown.
 
+So, in total, it looks like this:
+
+```
+	[testmark]:# (the-data-name-goes-here)
+	```text
+	this is your data block
+	as big as you like
+	```
+```
+
 That's it.
 
-Check out the [testdata/example.md](testdata/example.md) file for another example.
+Check out the [testdata/example.md](testdata/example.md) file (and other files in that directory) for more examples.
 Be sure to mind the [raw form of the file](https://raw.githubusercontent.com/warpfork/go-testmark/master/testdata/example.md) too.
 
 ### the purpose of testmark
@@ -108,6 +126,11 @@ and now your documentation misleads users, and adoption drops and frustration ri
   Easy fixture maintenance and automation, _and_ good human readability?  Yes, we _can_ have both.
 
 tl;dr: deduplicate the work of spec fixtures and docs, both saving time, and getting more confident in the results, simultaneously.
+
+### parsing testmark is easy
+
+See [README_parsing](README_parsing.md) if you would like to write a testmark parser in another language.
+It's _extremely_ straightforward.
 
 
 This is go-testmark
