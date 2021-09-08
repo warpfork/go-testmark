@@ -27,9 +27,10 @@ func ReadFile(name string) (*Document, error) {
 }
 
 var (
-	sigilLineBreak = []byte{'\n'}
-	sigilCodeBlock = []byte("```")
-	sigilTestmark  = []byte("[testmark]:# ")
+	sigilLineBreak      = []byte{'\n'}
+	sigilCarriageReturn = []byte{'\r'}
+	sigilCodeBlock      = []byte("```")
+	sigilTestmark       = []byte("[testmark]:# ")
 )
 
 func Parse(data []byte) (*Document, error) {
@@ -51,6 +52,9 @@ func Parse(data []byte) (*Document, error) {
 	var codeBlockOffset int
 	hunkInProgress := DocHunk{LineStart: -1}
 	for i, line := range doc.Lines {
+		// Support CRLF line endings, for Windows.
+		line = bytes.TrimSuffix(line, sigilCarriageReturn)
+
 		// Check for transition in or out of codeblock.
 		if bytes.HasPrefix(line, sigilCodeBlock) {
 			switch inCodeBlock {
