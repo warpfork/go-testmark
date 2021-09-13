@@ -51,9 +51,9 @@ func Parse(data []byte) (*Document, error) {
 	var expectCodeBlock bool
 	var codeBlockOffset int
 	hunkInProgress := DocHunk{LineStart: -1}
-	for i, line := range doc.Lines {
+	for i, origLine := range doc.Lines {
 		// Support CRLF line endings, for Windows.
-		line = bytes.TrimSuffix(line, sigilCarriageReturn)
+		line := bytes.TrimSuffix(origLine, sigilCarriageReturn)
 
 		// Check for transition in or out of codeblock.
 		if bytes.HasPrefix(line, sigilCodeBlock) {
@@ -61,7 +61,7 @@ func Parse(data []byte) (*Document, error) {
 			case false: // starting a block
 				if expectCodeBlock {
 					hunkInProgress.BlockTag = string(line[len(sigilCodeBlock):])
-					codeBlockOffset = offset + len(line) + 1
+					codeBlockOffset = offset + len(origLine) + 1
 				}
 				expectCodeBlock = false
 			case true: // ending a block
@@ -120,7 +120,7 @@ func Parse(data []byte) (*Document, error) {
 	next:
 		// Track total offset, so we can use it to subslice out document hunks.
 		// Mind: this is going to be off by one at the very end of the file... but that turns out never to matter to us.
-		offset += len(line) + 1
+		offset += len(origLine) + 1
 	}
 	return &doc, nil
 }
