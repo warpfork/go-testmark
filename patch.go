@@ -92,6 +92,13 @@ func Patch(oldDoc *Document, hunks ...Hunk) (newDoc *Document) {
 		newDoc.Lines = append(newDoc.Lines, []byte{})
 	}
 
+	// If we've ended up with multiple trailing blank lines, that's usually considered undesirable,
+	//  so let's nip those back down.
+	l := len(newDoc.Lines)
+	if l > 1 && len(newDoc.Lines[l-1]) == 0 {
+		newDoc.Lines = newDoc.Lines[0 : l-1]
+	}
+
 	return
 }
 
