@@ -54,11 +54,19 @@ type AssertFn func(t *testing.T, actual, expect string)
 // (A nil ExecFn will result in an OS exec being used (specifically: `ExecFn_Exec`);
 // a nil FilterFn means no filtering will occur;
 // a nil AssertFn means a very basic check using t.Errorf will be used.)
+//
+// The 'Patches' a slice for patched hunks will be appended to if `testmark.Regen` is true.
+// (If the pointer is nil, a new slice will be made;
+// if the pointer is handed in before usage, it can be used to accumulate patches
+// batched up with other patches destined for the same document.)
+// It is the user's responsibility to actually apply the patches and save the updated document.
 type Tester struct {
 	ExecFn
 	ScriptFn
 	FilterFn
 	AssertFn
+
+	Patches *[]testmark.Hunk
 }
 
 func (tcfg *Tester) init() {
@@ -116,7 +124,15 @@ func (tcfg *Tester) init() {
 // There is no faculty for ignoring an exitcode.
 // Surely the systems you're so rigorously ensuring the quality of don't have nondeterministic exit codes;
 // so why would you need to do this?  If it's allowed to be anything but zero, it should be expected to be that; and if it's expected, say so.
-func (tcfg Tester) TestSequence(t *testing.T, data testmark.DirEnt) {
+//
+// This test system comes complete with fixture regeneration support.
+// If `testmark.Regen` is true (e.g. you have invoked "go test" with the argument "-testmark.regen"),
+// then instead of making any assertions, this function will accumulate patches
+// in the `Tester.Patches` slice.
+// Regen mode will only update hunks that already exist; it won't add them.
+// As an edge case, note that if that an exitcode hunk is absent, but a nonzero exitcode is encountered,
+// the test will still be failed, even though in patch regen mode most assertions are usually skipped.
+func (tcfg *Tester) TestSequence(t *testing.T, data testmark.DirEnt) {
 	t.Helper()
 	tcfg.init()
 
@@ -164,24 +180,44 @@ func (tcfg Tester) TestSequence(t *testing.T, data testmark.DirEnt) {
 	}
 
 	// Okay, comparisons time.
-	if hunk, exists := data.Children["output"]; exists {
-		t.Run("check-combined-output", func(t *testing.T) {
-			tcfg.AssertFn(t, string(stdout.(*bytes.Buffer).Bytes()), string(hunk.Hunk.Body))
-		})
+	// Or, regen time!
+	if ent, exists := data.Children["output"]; exists {
+		bs := stdout.(*bytes.Buffer).Bytes()
+		if *testmark.Regen {
+			tcfg.maybeAppendPatch(*ent.Hunk, bs)
+		} else {
+			t.Run("check-combined-output", func(t *testing.T) {
+				tcfg.AssertFn(t, string(bs), string(ent.Hunk.Body))
+			})
+		}
 	}
-	if hunk, exists := data.Children["stdout"]; exists {
-		t.Run("check-stdout", func(t *testing.T) {
-			tcfg.AssertFn(t, string(stdout.(*bytes.Buffer).Bytes()), string(hunk.Hunk.Body))
-		})
+	if ent, exists := data.Children["stdout"]; exists {
+		bs := stdout.(*bytes.Buffer).Bytes()
+		if *testmark.Regen {
+			tcfg.maybeAppendPatch(*ent.Hunk, bs)
+		} else {
+			t.Run("check-stdout", func(t *testing.T) {
+				tcfg.AssertFn(t, string(bs), string(ent.Hunk.Body))
+			})
+		}
 	}
-	if hunk, exists := data.Children["stderr"]; exists {
-		t.Run("check-stderr", func(t *testing.T) {
-			tcfg.AssertFn(t, string(stderr.(*bytes.Buffer).Bytes()), string(hunk.Hunk.Body))
-		})
+	if ent, exists := data.Children["stderr"]; exists {
+		bs := stderr.(*bytes.Buffer).Bytes()
+		if *testmark.Regen {
+			tcfg.maybeAppendPatch(*ent.Hunk, bs)
+		} else {
+			t.Run("check-stderr", func(t *testing.T) {
+				tcfg.AssertFn(t, string(bs), string(ent.Hunk.Body))
+			})
+		}
 	}
 	t.Run("check-exitcode", func(t *testing.T) {
-		if hunk, exists := data.Children["exitcode"]; exists {
-			tcfg.AssertFn(t, strconv.Itoa(exitcode), strings.TrimSpace(string(hunk.Hunk.Body)))
+		if ent, exists := data.Children["exitcode"]; exists {
+			if *testmark.Regen {
+				tcfg.maybeAppendPatch(*ent.Hunk, []byte(strconv.Itoa(exitcode)))
+			} else {
+				tcfg.AssertFn(t, strconv.Itoa(exitcode), strings.TrimSpace(string(ent.Hunk.Body)))
+			}
 		} else {
 			tcfg.AssertFn(t, strconv.Itoa(exitcode), "0")
 		}
@@ -190,11 +226,11 @@ func (tcfg Tester) TestSequence(t *testing.T, data testmark.DirEnt) {
 	// TODO: look for "then-*" dirs.
 }
 
-func (tcfg Tester) TestScript(t *testing.T, data testmark.DirEnt) {
+func (tcfg *Tester) TestScript(t *testing.T, data testmark.DirEnt) {
 	panic("not yet implemented")
 }
 
-func (tcfg Tester) Test(t *testing.T, data testmark.DirEnt) {
+func (tcfg *Tester) Test(t *testing.T, data testmark.DirEnt) {
 	panic("not yet implemented")
 }
 
@@ -202,4 +238,17 @@ func (tcfg Tester) Test(t *testing.T, data testmark.DirEnt) {
 
 // Not yet defined if these should complain loudly if they _don't_ find something that matches.  I think being able to shrug is useful; otherwise that check will often get offloaded to callers.
 
-// TODO: "patch" variants of all of the functions.
+func (tcfg *Tester) maybeAppendPatch(hunk testmark.Hunk, newBody []byte) {
+	if !bytes.Equal(hunk.Body, newBody) {
+		hunk.Body = newBody
+		tcfg.appendPatch(hunk)
+	}
+}
+
+func (tcfg *Tester) appendPatch(hunk testmark.Hunk) {
+	if tcfg.Patches == nil {
+		patches := make([]testmark.Hunk, 0)
+		tcfg.Patches = &patches
+	}
+	*tcfg.Patches = append(*tcfg.Patches, hunk)
+}

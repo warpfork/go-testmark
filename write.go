@@ -2,6 +2,7 @@ package testmark
 
 import (
 	"io"
+	"os"
 	"strings"
 )
 
@@ -26,4 +27,30 @@ func Write(doc *Document, wr io.Writer) (int, error) {
 		}
 	}
 	return n, nil
+}
+
+func WriteFile(doc *Document, filename string) error {
+	f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = Write(doc, f)
+	return err
+}
+
+func WriteWithPatches(doc *Document, wr io.Writer, patches ...Hunk) (int, error) {
+	if len(patches) == 0 {
+		return 0, nil
+	}
+	doc = Patch(doc, patches...)
+	return Write(doc, wr)
+}
+
+func WriteFileWithPatches(doc *Document, filename string, patches ...Hunk) error {
+	if len(patches) == 0 {
+		return nil
+	}
+	doc = Patch(doc, patches...)
+	return WriteFile(doc, filename)
 }
