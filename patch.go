@@ -43,6 +43,10 @@ func Patch(oldDoc *Document, hunks ...Hunk) (newDoc *Document) {
 			// Split our new hunk's body into lines, ready to append to the total content lines.
 			// The rest... copy it into 'hunk', actually, it's a local variable and it makes the code slightly more DRY.
 			newBodyLines = bytes.Split(newHunk.Body, sigilLineBreak)
+			// If the last byte was a linebreak, the split will tend to exaggerate it a bit, so let's trim that back down.
+			if len(newHunk.Body) > 0 && newHunk.Body[len(newHunk.Body)-1] == '\n' {
+				newBodyLines = newBodyLines[0 : len(newBodyLines)-1]
+			}
 			hunk.BlockTag = newHunk.BlockTag
 
 			// Yeet from newHunks, as it's now handled.
