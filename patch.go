@@ -98,3 +98,21 @@ func appendHunkLines(lines [][]byte, hunkName string, hunkBlockTag string, hunkB
 	lines = append(lines, sigilCodeBlock)
 	return lines
 }
+
+type PatchAccumulator struct {
+	Patches []Hunk
+}
+
+func (pa *PatchAccumulator) AppendPatchIfBodyDiffers(hunk Hunk, newBody []byte) {
+	if !bytes.Equal(hunk.Body, newBody) {
+		hunk.Body = newBody
+		pa.AppendPatch(hunk)
+	}
+}
+
+func (pa *PatchAccumulator) AppendPatch(hunk Hunk) {
+	if pa.Patches == nil {
+		pa.Patches = make([]Hunk, 0)
+	}
+	pa.Patches = append(pa.Patches, hunk)
+}

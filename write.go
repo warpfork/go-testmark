@@ -54,3 +54,11 @@ func WriteFileWithPatches(doc *Document, filename string, patches ...Hunk) error
 	doc = Patch(doc, patches...)
 	return WriteFile(doc, filename)
 }
+
+func (pa PatchAccumulator) WriteWithPatches(doc *Document, wr io.Writer) (int, error) {
+	return WriteWithPatches(doc, wr, pa.Patches...)
+}
+
+func (pa PatchAccumulator) WriteFileWithPatches(doc *Document, filename string) error {
+	return WriteFileWithPatches(doc, filename, pa.Patches...)
+}

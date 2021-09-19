@@ -55,10 +55,8 @@ type AssertFn func(t *testing.T, actual, expect string)
 // a nil FilterFn means no filtering will occur;
 // a nil AssertFn means a very basic check using t.Errorf will be used.)
 //
-// The 'Patches' a slice for patched hunks will be appended to if `testmark.Regen` is true.
-// (If the pointer is nil, a new slice will be made;
-// if the pointer is handed in before usage, it can be used to accumulate patches
-// batched up with other patches destined for the same document.)
+// The 'Patches' accumulator will be used to gather new fixture data if `testmark.Regen` is true.
+// (If the pointer is nil, a warning will be logged.)
 // It is the user's responsibility to actually apply the patches and save the updated document.
 type Tester struct {
 	ExecFn
@@ -66,7 +64,7 @@ type Tester struct {
 	FilterFn
 	AssertFn
 
-	Patches *[]testmark.Hunk
+	Patches *testmark.PatchAccumulator
 }
 
 func (tcfg *Tester) init() {
@@ -132,13 +130,17 @@ func (tcfg *Tester) init() {
 // Regen mode will only update hunks that already exist; it won't add them.
 // As an edge case, note that if that an exitcode hunk is absent, but a nonzero exitcode is encountered,
 // the test will still be failed, even though in patch regen mode most assertions are usually skipped.
-func (tcfg *Tester) TestSequence(t *testing.T, data testmark.DirEnt) {
+func (tcfg Tester) TestSequence(t *testing.T, data testmark.DirEnt) {
 	t.Helper()
 	tcfg.init()
 
 	sequenceHunk, exists := data.Children["sequence"]
 	if !exists {
 		return
+	}
+	if *testmark.Regen && tcfg.Patches == nil {
+		t.Logf("warning: testmark.regen mode engaged, but there is no patch accumulator available here")
+		t.Skipf("nothing to do if requested to regenerate test fixtures but have nowhere to put data")
 	}
 
 	// Prepare output buffers.
@@ -184,7 +186,7 @@ func (tcfg *Tester) TestSequence(t *testing.T, data testmark.DirEnt) {
 	if ent, exists := data.Children["output"]; exists {
 		bs := stdout.(*bytes.Buffer).Bytes()
 		if *testmark.Regen {
-			tcfg.maybeAppendPatch(*ent.Hunk, bs)
+			tcfg.Patches.AppendPatchIfBodyDiffers(*ent.Hunk, bs)
 		} else {
 			t.Run("check-combined-output", func(t *testing.T) {
 				tcfg.AssertFn(t, string(bs), string(ent.Hunk.Body))
@@ -194,7 +196,7 @@ func (tcfg *Tester) TestSequence(t *testing.T, data testmark.DirEnt) {
 	if ent, exists := data.Children["stdout"]; exists {
 		bs := stdout.(*bytes.Buffer).Bytes()
 		if *testmark.Regen {
-			tcfg.maybeAppendPatch(*ent.Hunk, bs)
+			tcfg.Patches.AppendPatchIfBodyDiffers(*ent.Hunk, bs)
 		} else {
 			t.Run("check-stdout", func(t *testing.T) {
 				tcfg.AssertFn(t, string(bs), string(ent.Hunk.Body))
@@ -204,7 +206,7 @@ func (tcfg *Tester) TestSequence(t *testing.T, data testmark.DirEnt) {
 	if ent, exists := data.Children["stderr"]; exists {
 		bs := stderr.(*bytes.Buffer).Bytes()
 		if *testmark.Regen {
-			tcfg.maybeAppendPatch(*ent.Hunk, bs)
+			tcfg.Patches.AppendPatchIfBodyDiffers(*ent.Hunk, bs)
 		} else {
 			t.Run("check-stderr", func(t *testing.T) {
 				tcfg.AssertFn(t, string(bs), string(ent.Hunk.Body))
@@ -214,7 +216,7 @@ func (tcfg *Tester) TestSequence(t *testing.T, data testmark.DirEnt) {
 	t.Run("check-exitcode", func(t *testing.T) {
 		if ent, exists := data.Children["exitcode"]; exists {
 			if *testmark.Regen {
-				tcfg.maybeAppendPatch(*ent.Hunk, []byte(strconv.Itoa(exitcode)))
+				tcfg.Patches.AppendPatchIfBodyDiffers(*ent.Hunk, []byte(strconv.Itoa(exitcode)))
 			} else {
 				tcfg.AssertFn(t, strconv.Itoa(exitcode), strings.TrimSpace(string(ent.Hunk.Body)))
 			}
@@ -226,29 +228,14 @@ func (tcfg *Tester) TestSequence(t *testing.T, data testmark.DirEnt) {
 	// TODO: look for "then-*" dirs.
 }
 
-func (tcfg *Tester) TestScript(t *testing.T, data testmark.DirEnt) {
+func (tcfg Tester) TestScript(t *testing.T, data testmark.DirEnt) {
 	panic("not yet implemented")
 }
 
-func (tcfg *Tester) Test(t *testing.T, data testmark.DirEnt) {
+func (tcfg Tester) Test(t *testing.T, data testmark.DirEnt) {
 	panic("not yet implemented")
 }
 
 // Not yet defined how these will nest.  ISTM if you specify one or the other, it shouldn't become willing to switch when it goes deeper into then-trees.
 
 // Not yet defined if these should complain loudly if they _don't_ find something that matches.  I think being able to shrug is useful; otherwise that check will often get offloaded to callers.
-
-func (tcfg *Tester) maybeAppendPatch(hunk testmark.Hunk, newBody []byte) {
-	if !bytes.Equal(hunk.Body, newBody) {
-		hunk.Body = newBody
-		tcfg.appendPatch(hunk)
-	}
-}
-
-func (tcfg *Tester) appendPatch(hunk testmark.Hunk) {
-	if tcfg.Patches == nil {
-		patches := make([]testmark.Hunk, 0)
-		tcfg.Patches = &patches
-	}
-	*tcfg.Patches = append(*tcfg.Patches, hunk)
-}
