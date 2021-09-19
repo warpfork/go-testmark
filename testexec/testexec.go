@@ -9,7 +9,10 @@
 package testexec
 
 import (
+	"bytes"
 	"io"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/warpfork/go-testmark"
@@ -58,6 +61,18 @@ type Tester struct {
 	AssertFn
 }
 
+func (tcfg *Tester) init() {
+	if tcfg.ExecFn == nil {
+		tcfg.ExecFn = ExecFn_Exec
+	}
+	if tcfg.ScriptFn == nil {
+		tcfg.ScriptFn = ScriptFn_ExecBash
+	}
+	if tcfg.AssertFn == nil {
+		tcfg.AssertFn = defaultAssertFn
+	}
+}
+
 // TestSequence runs a test based on a "sequence" instruction -- a hunk called "sequence" should have a series of lines,
 // and each line is a command to be executed.
 //
@@ -102,7 +117,77 @@ type Tester struct {
 // Surely the systems you're so rigorously ensuring the quality of don't have nondeterministic exit codes;
 // so why would you need to do this?  If it's allowed to be anything but zero, it should be expected to be that; and if it's expected, say so.
 func (tcfg Tester) TestSequence(t *testing.T, data testmark.DirEnt) {
-	panic("not yet implemented")
+	t.Helper()
+	tcfg.init()
+
+	sequenceHunk, exists := data.Children["sequence"]
+	if !exists {
+		return
+	}
+
+	// Prepare output buffers.
+	var stdout, stderr io.Writer
+	if _, exists := data.Children["output"]; exists {
+		stdout = &bytes.Buffer{}
+		stderr = stdout
+		if _, exists := data.Children["stdout"]; exists {
+			t.Errorf("testexec entry %q shouldn't contain 'stdout' hunk if it also specifies a unified 'output' hunk", data.Name)
+		}
+		if _, exists := data.Children["stderr"]; exists {
+			t.Errorf("testexec entry %q shouldn't contain 'stderr' hunk if it also specifies a unified 'output' hunk", data.Name)
+		}
+	}
+	if _, exists := data.Children["stdout"]; exists {
+		stdout = &bytes.Buffer{}
+	}
+	if _, exists := data.Children["stderr"]; exists {
+		stderr = &bytes.Buffer{}
+	}
+	var exitcode int
+
+	// Loop over the lines in the sequence.
+	lines := bytes.Split(sequenceHunk.Hunk.Body, []byte{'\n'})
+	for _, line := range lines {
+		args := strings.Fields(string(line))
+		if len(args) < 1 {
+			continue
+		}
+
+		var err error
+		exitcode, err = tcfg.ExecFn(args, bytes.NewReader(nil), stdout, stderr)
+		if err != nil {
+			t.Fatalf("execution failed: %s", err)
+		}
+		if exitcode != 0 {
+			break // TODO: it's probably still an error if that happens before the end?
+		}
+	}
+
+	// Okay, comparisons time.
+	if hunk, exists := data.Children["output"]; exists {
+		t.Run("check-combined-output", func(t *testing.T) {
+			tcfg.AssertFn(t, string(stdout.(*bytes.Buffer).Bytes()), string(hunk.Hunk.Body))
+		})
+	}
+	if hunk, exists := data.Children["stdout"]; exists {
+		t.Run("check-stdout", func(t *testing.T) {
+			tcfg.AssertFn(t, string(stdout.(*bytes.Buffer).Bytes()), string(hunk.Hunk.Body))
+		})
+	}
+	if hunk, exists := data.Children["stderr"]; exists {
+		t.Run("check-stderr", func(t *testing.T) {
+			tcfg.AssertFn(t, string(stderr.(*bytes.Buffer).Bytes()), string(hunk.Hunk.Body))
+		})
+	}
+	t.Run("check-exitcode", func(t *testing.T) {
+		if hunk, exists := data.Children["exitcode"]; exists {
+			tcfg.AssertFn(t, strconv.Itoa(exitcode), strings.TrimSpace(string(hunk.Hunk.Body)))
+		} else {
+			tcfg.AssertFn(t, strconv.Itoa(exitcode), "0")
+		}
+	})
+
+	// TODO: look for "then-*" dirs.
 }
 
 func (tcfg Tester) TestScript(t *testing.T, data testmark.DirEnt) {
@@ -116,3 +201,5 @@ func (tcfg Tester) Test(t *testing.T, data testmark.DirEnt) {
 // Not yet defined how these will nest.  ISTM if you specify one or the other, it shouldn't become willing to switch when it goes deeper into then-trees.
 
 // Not yet defined if these should complain loudly if they _don't_ find something that matches.  I think being able to shrug is useful; otherwise that check will often get offloaded to callers.
+
+// TODO: "patch" variants of all of the functions.
