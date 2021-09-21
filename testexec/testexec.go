@@ -131,12 +131,35 @@ func (tcfg *Tester) init() {
 // As an edge case, note that if that an exitcode hunk is absent, but a nonzero exitcode is encountered,
 // the test will still be failed, even though in patch regen mode most assertions are usually skipped.
 func (tcfg Tester) TestSequence(t *testing.T, data testmark.DirEnt) {
+	tcfg.test(t, data, true, false)
+}
+
+func (tcfg Tester) TestScript(t *testing.T, data testmark.DirEnt) {
+	tcfg.test(t, data, false, true)
+}
+
+func (tcfg Tester) Test(t *testing.T, data testmark.DirEnt) {
+	tcfg.test(t, data, true, true)
+}
+
+func (tcfg Tester) test(t *testing.T, data testmark.DirEnt, allowExec, allowScript bool) {
 	t.Helper()
 	tcfg.init()
 
-	sequenceHunk, exists := data.Children["sequence"]
-	if !exists {
+	sequenceHunk, sequenceMode := data.Children["sequence"]
+	scriptHunk, scriptMode := data.Children["script"]
+	if !sequenceMode && !scriptMode {
 		return
+	}
+	if sequenceMode && scriptMode {
+		t.Logf("warning: dir %q contained both a 'script' and a 'sequence' hunk, which is nonsensical", data.Name)
+		t.SkipNow()
+	}
+	if sequenceMode && !allowExec {
+		t.Skipf("found sequence hunk but the test framework was invoked without permission to run those")
+	}
+	if scriptMode && !allowScript {
+		t.Skipf("found sequence hunk but the test framework was invoked without permission to run those")
 	}
 	if *testmark.Regen && tcfg.Patches == nil {
 		t.Logf("warning: testmark.regen mode engaged, but there is no patch accumulator available here")
@@ -163,22 +186,12 @@ func (tcfg Tester) TestSequence(t *testing.T, data testmark.DirEnt) {
 	}
 	var exitcode int
 
-	// Loop over the lines in the sequence.
-	lines := bytes.Split(sequenceHunk.Hunk.Body, []byte{'\n'})
-	for _, line := range lines {
-		args := strings.Fields(string(line))
-		if len(args) < 1 {
-			continue
-		}
-
-		var err error
-		exitcode, err = tcfg.ExecFn(args, bytes.NewReader(nil), stdout, stderr)
-		if err != nil {
-			t.Fatalf("execution failed: %s", err)
-		}
-		if exitcode != 0 {
-			break // TODO: it's probably still an error if that happens before the end?
-		}
+	// Do the thing.
+	switch {
+	case sequenceMode:
+		exitcode = tcfg.doSequence(t, sequenceHunk.Hunk, stdout, stderr)
+	case scriptMode:
+		exitcode = tcfg.doScript(t, scriptHunk.Hunk, stdout, stderr)
 	}
 
 	// Okay, comparisons time.
@@ -226,16 +239,35 @@ func (tcfg Tester) TestSequence(t *testing.T, data testmark.DirEnt) {
 	})
 
 	// TODO: look for "then-*" dirs.
+
 }
 
-func (tcfg Tester) TestScript(t *testing.T, data testmark.DirEnt) {
-	panic("not yet implemented")
+func (tcfg Tester) doSequence(t *testing.T, hunk *testmark.Hunk, stdout, stderr io.Writer) (exitcode int) {
+	// Loop over the lines in the sequence.
+	lines := bytes.Split(hunk.Body, []byte{'\n'})
+	for _, line := range lines {
+		args := strings.Fields(string(line))
+		if len(args) < 1 {
+			continue
+		}
+
+		var err error
+		exitcode, err = tcfg.ExecFn(args, bytes.NewReader(nil), stdout, stderr)
+		if err != nil {
+			t.Fatalf("execution failed: %s", err)
+		}
+		if exitcode != 0 {
+			break // TODO: it's probably still an error if that happens before the end?
+		}
+	}
+	return
 }
 
-func (tcfg Tester) Test(t *testing.T, data testmark.DirEnt) {
-	panic("not yet implemented")
+func (tcfg Tester) doScript(t *testing.T, hunk *testmark.Hunk, stdout, stderr io.Writer) (exitcode int) {
+	var err error
+	exitcode, err = tcfg.ScriptFn(string(hunk.Body), bytes.NewReader(nil), stdout, stderr)
+	if err != nil {
+		t.Fatalf("execution failed: %s", err)
+	}
+	return
 }
-
-// Not yet defined how these will nest.  ISTM if you specify one or the other, it shouldn't become willing to switch when it goes deeper into then-trees.
-
-// Not yet defined if these should complain loudly if they _don't_ find something that matches.  I think being able to shrug is useful; otherwise that check will often get offloaded to callers.
