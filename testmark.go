@@ -52,6 +52,11 @@ type Hunk struct {
 
 	// The full body of the hunk, as bytes.
 	// (This is *still* a subslice of Document.Original, if this hunk was created by Parse, but probably a unique slice otherwise.)
+	//
+	// When produced by Parse, the Body has been normalized to have '\n' linebreaks if it originally contained '\r\n'.
+	// This is meant as a practical conceit to the fact some systems in the Windows ecosystem tend to mutate documents when checking them out of version control,
+	// and thus testmark finds it practical to pave that back out that again rather than making it an application-level problem.
+	// (If such a normalization had to be applied, the earlier coment about subslicing of Document.Original probably no longer applies.)
 	Body []byte
 }
 

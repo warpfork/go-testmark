@@ -29,6 +29,7 @@ func ReadFile(name string) (*Document, error) {
 var (
 	sigilLineBreak      = []byte{'\n'}
 	sigilCarriageReturn = []byte{'\r'}
+	sigilCrLf           = []byte{'\r', '\n'}
 	sigilCodeBlock      = []byte("```")
 	sigilTestmark       = []byte("[testmark]:# ")
 )
@@ -67,7 +68,7 @@ func Parse(data []byte) (*Document, error) {
 			case true: // ending a block
 				if hunkInProgress.LineStart > -1 {
 					hunkInProgress.LineEnd = i
-					hunkInProgress.Body = doc.Original[codeBlockOffset:offset]
+					hunkInProgress.Body = normalizeEndings(doc.Original[codeBlockOffset:offset])
 					doc.DataHunks = append(doc.DataHunks, hunkInProgress)
 					doc.HunksByName[hunkInProgress.Name] = hunkInProgress
 					hunkInProgress = DocHunk{LineStart: -1}
@@ -123,4 +124,19 @@ func Parse(data []byte) (*Document, error) {
 		offset += len(origLine) + 1
 	}
 	return &doc, nil
+}
+
+// normalizeEndings looks for instances of "\r\n" and flattens them to "\n".
+// If it finds no instances of "\r\n", the original byte slice is returned unchanged.
+//
+// This function does not bring joy; however,
+// see https://github.com/warpfork/go-testmark/pull/4#issuecomment-922760414
+// and see https://github.com/warpfork/go-testmark/pull/4#issuecomment-922782549
+// for discussion.  Performing this kind of normalization to data hunk boundaries
+// seems to be a "least bad" behavior in a practical sense.
+func normalizeEndings(in []byte) []byte {
+	if bytes.Count(in, sigilCrLf) == 0 {
+		return in
+	}
+	return bytes.Replace(in, sigilCrLf, sigilLineBreak, -1)
 }

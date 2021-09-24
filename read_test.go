@@ -40,8 +40,6 @@ func readFixturesExample(t *testing.T, doc *testmark.Document) {
 }
 
 func TestParseCRLF(t *testing.T) {
-	t.Skip("currently broken")
-
 	input, err := ioutil.ReadFile(filepath.Join("testdata", "example.md"))
 	if err != nil {
 		t.Fatal(err)
