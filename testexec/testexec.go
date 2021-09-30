@@ -11,6 +11,9 @@ package testexec
 import (
 	"bytes"
 	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -105,6 +108,12 @@ func (tcfg *Tester) init() {
 // and nothing about their stdout nor stderr will be checked.
 // (If you want to mandate that their output is empty, you must create a blank data block to say so explicitly.)
 //
+// Additionally, the commands can be run within a temp directory, with some files pre-populated,
+// by use of data hunks under the "fs/" name.  So, "fs/foo.bar" will result in a file named "foo.bar" in the temp directory.
+// The temp directory is applied by using `os.Chdir`, and so is not safe for use with concurrent tests.
+// There are no special faculties for making empty directories, symlinks, setting file properties, etc;
+// if you need to do anything fancy, a setup script may be a good direction to pursue.
+//
 // If you wish to run some commands, and gather and test (or ignore!) their output as one block,
 // then run additional commands in a subtest, you can use another special path name
 // in the testmark.DirEnt for that: `then-(.*)`.
@@ -164,6 +173,29 @@ func (tcfg Tester) test(t *testing.T, data testmark.DirEnt, allowExec, allowScri
 	if *testmark.Regen && tcfg.Patches == nil {
 		t.Logf("warning: testmark.regen mode engaged, but there is no patch accumulator available here")
 		t.Skipf("nothing to do if requested to regenerate test fixtures but have nowhere to put data")
+	}
+
+	// Create a tempdir, and fill it with any files.
+	if fsEnt, exists := data.Children["fs"]; exists {
+		// Create and get into a tempdir.
+		dir, err := ioutil.TempDir("", "testmarkexec")
+		if err != nil {
+			t.Errorf("test aborted: could not create tempdir: %s", err)
+		}
+		defer os.RemoveAll(dir)
+		retreat, err := os.Getwd()
+		if err != nil {
+			t.Errorf("test aborted: could not find cwd: %s", err)
+		}
+		defer os.Chdir(retreat)
+		if err := os.Chdir(dir); err != nil {
+			t.Errorf("test aborted: could not chdir to tempdir: %s", err)
+		}
+
+		// Create files.
+		if err := createFiles(fsEnt, "."); err != nil {
+			t.Errorf("test aborted: could not populate files to tempdir: %s", err)
+		}
 	}
 
 	// Prepare output buffers.
@@ -270,4 +302,22 @@ func (tcfg Tester) doScript(t *testing.T, hunk *testmark.Hunk, stdout, stderr io
 		t.Fatalf("execution failed: %s", err)
 	}
 	return
+}
+
+// createFiles makes files and directories matching testmark hunks.
+// It creates them relative to the os cwd plus prefix -- use with care.
+func createFiles(dir *testmark.DirEnt, prefix string) error {
+	if dir.Hunk != nil {
+		return ioutil.WriteFile(prefix, dir.Hunk.Body, 0644)
+	} else {
+		if err := os.MkdirAll(prefix, 0755); err != nil {
+			return err
+		}
+	}
+	for _, ent := range dir.Children {
+		if err := createFiles(ent, filepath.Join(prefix, ent.Name)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
