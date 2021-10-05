@@ -3,6 +3,36 @@ Parsing Testmark
 
 Parsing Testmark is extremely easy.
 
+
+The Testmark Format
+-------------------
+
+The testmark format is a subset of markdown, specifically selected to be easy to parse out of a larger markdown document.
+
+The format looks generally like this:
+
+```
+	[testmark]:# (some/hunk-name-goes-here)
+	```text
+	this is your data block
+	as big as you like
+	```
+```
+
+More specifically:
+
+1. There must be a markdown "comment" of the form seen above (e.g. a line that starts with `[testmark]:# (` and ends in `)`).
+2. It must be followed by a data block that starts with triple-backticks, which may not be indented.
+3. The data block ends when there are again triple-backticks, which may again not be indented.
+
+(Note that there are quite a few other ways of declarating code blocks in markdown -- testmark does *not* support all of them;
+it focuses on exactly one, for simplicity and clarity.
+(See discussion in https://github.com/warpfork/go-testmark/issues/1 .))
+
+
+Implementing a Testmark Parser
+------------------------------
+
 There are two major roads you can take:
 
 1. Use a full-on markdown parser -- then only pluck out the data you need.
@@ -12,8 +42,7 @@ We actually recommend [Option 2](#option-2-write-a-testmark-focused-parser).
 Simple is better.
 
 
-Option 1: use a full-on markdown parser
----------------------------------------
+### Option 1: use a full-on markdown parser
 
 Of course, since testmark is "just markdown",
 if you are working in a language that already has a suitable markdown parsing library,
@@ -41,8 +70,7 @@ You can probably build something that's:
 ... by going with [Option 2](#option-2-write-a-testmark-focused-parser): writing a simple parser focused on testmark alone.
 
 
-Option 2: write a testmark-focused parser
------------------------------------------
+### Option 2: write a testmark-focused parser
 
 It's extremely simple to build a direct testmark-focused parser --
 the only features we need to parse are line-break delimited,
@@ -102,3 +130,16 @@ and will never rewrite anything except the testmark data blocks, and thus follow
 You can see a golang implementation of this in [patch.go](patch.go) if the example is helpful.
 It is again less than 100 lines, and nearly 50% of them comments.
 It also includes efficient batching application many patches at once.
+
+
+About Linebreaks
+----------------
+
+This testmark implementation always reports data hunks as having LF-only line endings (e.g. unix style).
+If it sees CRLF linebreaks (e.g. windows style) in a document, it will normalize them to LF-only in the byte slices yielded to the user.
+
+We consider this a tactically useful choice, because there are other systems in the world that convert linebreaks to CRLF
+(namely, git, with default configuration, on windows environments -- which is often relevant, because testmark files are often stored in git, and checked out on windows),
+and yet rarely if ever do developers want to have to shield their tests against this variation.
+
+(See https://github.com/warpfork/go-testmark/pull/4 and https://github.com/warpfork/go-testmark/pull/3 for discussion.)
