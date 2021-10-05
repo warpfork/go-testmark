@@ -48,7 +48,7 @@ type Hunk struct {
 
 	// The code block syntax hint (or more literally: anything that comes after the triple-tick that starts the code block).
 	// Usually we don't encourage use of this much in testmark, but it's here.  Can be empty.
-	BlockTag string
+	InfoString string
 
 	// The full body of the hunk, as bytes.
 	// (This is *still* a subslice of Document.Original, if this hunk was created by Parse, but probably a unique slice otherwise.)

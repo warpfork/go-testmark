@@ -47,7 +47,7 @@ func Patch(oldDoc *Document, hunks ...Hunk) (newDoc *Document) {
 			if len(newHunk.Body) > 0 && newHunk.Body[len(newHunk.Body)-1] == '\n' {
 				newBodyLines = newBodyLines[0 : len(newBodyLines)-1]
 			}
-			hunk.BlockTag = newHunk.BlockTag
+			hunk.InfoString = newHunk.InfoString
 
 			// Yeet from newHunks, as it's now handled.
 			delete(newHunks, hunk.Name)
@@ -60,7 +60,7 @@ func Patch(oldDoc *Document, hunks ...Hunk) (newDoc *Document) {
 		// Watch how this changes the offsets, so we can build a new DocHunk with info that's correct.
 		// (If you're just going to serialize this, it wouldn't matter, but if you want to patch multiple times, it matters.)
 		newLineStart := len(newDoc.Lines)
-		newDoc.Lines = appendHunkLines(newDoc.Lines, hunk.Name, hunk.BlockTag, newBodyLines)
+		newDoc.Lines = appendHunkLines(newDoc.Lines, hunk.Name, hunk.InfoString, newBodyLines)
 		newLineEnd := len(newDoc.Lines)
 		docHunk := DocHunk{
 			LineStart: newLineStart,
@@ -87,7 +87,7 @@ func Patch(oldDoc *Document, hunks ...Hunk) (newDoc *Document) {
 			newDoc.Lines = append(newDoc.Lines, []byte{})
 		}
 		// Append it.
-		newDoc.Lines = appendHunkLines(newDoc.Lines, hunk.Name, hunk.BlockTag, bytes.Split(hunk.Body, sigilLineBreak))
+		newDoc.Lines = appendHunkLines(newDoc.Lines, hunk.Name, hunk.InfoString, bytes.Split(hunk.Body, sigilLineBreak))
 		// And one more trailing line, at the end.
 		newDoc.Lines = append(newDoc.Lines, []byte{})
 	}

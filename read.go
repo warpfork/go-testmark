@@ -61,7 +61,7 @@ func Parse(data []byte) (*Document, error) {
 			switch inCodeBlock {
 			case false: // starting a block
 				if expectCodeBlock {
-					hunkInProgress.BlockTag = string(line[len(sigilCodeBlock):])
+					hunkInProgress.InfoString = string(line[len(sigilCodeBlock):])
 					codeBlockOffset = offset + len(origLine) + 1
 				}
 				expectCodeBlock = false

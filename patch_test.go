@@ -12,10 +12,10 @@ func TestPatch(t *testing.T) {
 	}
 	doc, err := ReadFile(filepath.Join(testdata, "example.md"))
 	doc = Patch(doc,
-		Hunk{Name: "more-data", BlockTag: "text", Body: []byte("you have been...\nreplaced.\nand gotten\nrather longer.")},
-		Hunk{Name: "this-is-the-data-name", BlockTag: "", Body: []byte("this one gets shorter.")},
-		Hunk{Name: "this-one-is-new", BlockTag: "json", Body: []byte(`{"hayo": "new data!"}`)},
-		Hunk{Name: "so-is-this", BlockTag: "json", Body: []byte(`{"appending": "is fun"}`)},
+		Hunk{Name: "more-data", InfoString: "text", Body: []byte("you have been...\nreplaced.\nand gotten\nrather longer.")},
+		Hunk{Name: "this-is-the-data-name", InfoString: "", Body: []byte("this one gets shorter.")},
+		Hunk{Name: "this-one-is-new", InfoString: "json", Body: []byte(`{"hayo": "new data!"}`)},
+		Hunk{Name: "so-is-this", InfoString: "json", Body: []byte(`{"appending": "is fun"}`)},
 	)
 	t.Logf("%s", doc.String())
 }
