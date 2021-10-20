@@ -140,14 +140,17 @@ func (tcfg *Tester) init() {
 // As an edge case, note that if that an exitcode hunk is absent, but a nonzero exitcode is encountered,
 // the test will still be failed, even though in patch regen mode most assertions are usually skipped.
 func (tcfg Tester) TestSequence(t *testing.T, data testmark.DirEnt) {
+	t.Helper()
 	tcfg.test(t, data, true, false)
 }
 
 func (tcfg Tester) TestScript(t *testing.T, data testmark.DirEnt) {
+	t.Helper()
 	tcfg.test(t, data, false, true)
 }
 
 func (tcfg Tester) Test(t *testing.T, data testmark.DirEnt) {
+	t.Helper()
 	tcfg.test(t, data, true, true)
 }
 
@@ -275,6 +278,7 @@ func (tcfg Tester) test(t *testing.T, data testmark.DirEnt, allowExec, allowScri
 }
 
 func (tcfg Tester) doSequence(t *testing.T, hunk *testmark.Hunk, stdout, stderr io.Writer) (exitcode int) {
+	t.Helper()
 	// Loop over the lines in the sequence.
 	lines := bytes.Split(hunk.Body, []byte{'\n'})
 	for _, line := range lines {
@@ -286,7 +290,7 @@ func (tcfg Tester) doSequence(t *testing.T, hunk *testmark.Hunk, stdout, stderr 
 		var err error
 		exitcode, err = tcfg.ExecFn(args, bytes.NewReader(nil), stdout, stderr)
 		if err != nil {
-			t.Fatalf("execution failed: %s", err)
+			t.Fatalf("execution failed: error from ExecFn is %q", err)
 		}
 		if exitcode != 0 {
 			break // TODO: it's probably still an error if that happens before the end?
@@ -296,10 +300,11 @@ func (tcfg Tester) doSequence(t *testing.T, hunk *testmark.Hunk, stdout, stderr 
 }
 
 func (tcfg Tester) doScript(t *testing.T, hunk *testmark.Hunk, stdout, stderr io.Writer) (exitcode int) {
+	t.Helper()
 	var err error
 	exitcode, err = tcfg.ScriptFn(string(hunk.Body), bytes.NewReader(nil), stdout, stderr)
 	if err != nil {
-		t.Fatalf("execution failed: %s", err)
+		t.Fatalf("execution failed: error from script is %q", err)
 	}
 	return
 }
