@@ -205,8 +205,10 @@ func (tcfg Tester) test(t *testing.T, data testmark.DirEnt, allowExec, allowScri
 		}
 
 		// Create any new files.
-		if err := createFiles(fsEnt, "."); err != nil {
-			t.Errorf("test aborted: could not populate files to tempdir: %s", err)
+		if fsEnt != nil {
+			if err := createFiles(fsEnt, "."); err != nil {
+				t.Errorf("test aborted: could not populate files to tempdir: %s", err)
+			}
 		}
 	}
 
