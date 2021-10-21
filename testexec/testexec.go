@@ -171,7 +171,7 @@ func (tcfg Tester) test(t *testing.T, data testmark.DirEnt, allowExec, allowScri
 		t.Skipf("found sequence hunk but the test framework was invoked without permission to run those")
 	}
 	if scriptMode && !allowScript {
-		t.Skipf("found sequence hunk but the test framework was invoked without permission to run those")
+		t.Skipf("found script hunk but the test framework was invoked without permission to run those")
 	}
 	if *testmark.Regen && tcfg.Patches == nil {
 		t.Logf("warning: testmark.regen mode engaged, but there is no patch accumulator available here")
