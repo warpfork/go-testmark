@@ -141,20 +141,20 @@ func (tcfg *Tester) init() {
 // the test will still be failed, even though in patch regen mode most assertions are usually skipped.
 func (tcfg Tester) TestSequence(t *testing.T, data testmark.DirEnt) {
 	t.Helper()
-	tcfg.test(t, data, true, false)
+	tcfg.test(t, data, true, false, "")
 }
 
 func (tcfg Tester) TestScript(t *testing.T, data testmark.DirEnt) {
 	t.Helper()
-	tcfg.test(t, data, false, true)
+	tcfg.test(t, data, false, true, "")
 }
 
 func (tcfg Tester) Test(t *testing.T, data testmark.DirEnt) {
 	t.Helper()
-	tcfg.test(t, data, true, true)
+	tcfg.test(t, data, true, true, "")
 }
 
-func (tcfg Tester) test(t *testing.T, data testmark.DirEnt, allowExec, allowScript bool) {
+func (tcfg Tester) test(t *testing.T, data testmark.DirEnt, allowExec, allowScript bool, parentTmpdir string) {
 	t.Helper()
 	tcfg.init()
 
@@ -179,9 +179,11 @@ func (tcfg Tester) test(t *testing.T, data testmark.DirEnt, allowExec, allowScri
 	}
 
 	// Create a tempdir, and fill it with any files.
-	if fsEnt, exists := data.Children["fs"]; exists {
+	var dir string
+	if fsEnt, exists := data.Children["fs"]; exists || parentTmpdir != "" {
 		// Create and get into a tempdir.
-		dir, err := ioutil.TempDir("", "testmarkexec")
+		var err error
+		dir, err = ioutil.TempDir("", "testmarkexec")
 		if err != nil {
 			t.Errorf("test aborted: could not create tempdir: %s", err)
 		}
@@ -195,9 +197,18 @@ func (tcfg Tester) test(t *testing.T, data testmark.DirEnt, allowExec, allowScri
 			t.Errorf("test aborted: could not chdir to tempdir: %s", err)
 		}
 
-		// Create files.
-		if err := createFiles(fsEnt, "."); err != nil {
-			t.Errorf("test aborted: could not populate files to tempdir: %s", err)
+		// If there was a parent tempdir: copy those files first.
+		if parentTmpdir != "" {
+			if err := copyFiles(parentTmpdir, dir); err != nil {
+				t.Errorf("test aborted: could not populate files to tempdir: %s", err)
+			}
+		}
+
+		// Create any new files.
+		if fsEnt != nil {
+			if err := createFiles(fsEnt, "."); err != nil {
+				t.Errorf("test aborted: could not populate files to tempdir: %s", err)
+			}
 		}
 	}
 
@@ -273,7 +284,20 @@ func (tcfg Tester) test(t *testing.T, data testmark.DirEnt, allowExec, allowScri
 		}
 	})
 
-	// TODO: look for "then-*" dirs.
+	// Look for "then-*" dirs.
+	//  If we're already failed -- make the run block, but skip it.
+	//  If we're going to procede: make a new tempdir, copy the contents, and then procede by recursing.
+	for _, child := range data.ChildrenList {
+		if len(child.Name) > 5 && strings.HasPrefix(child.Name, "then-") {
+			alreadyFailed := t.Failed()
+			t.Run(child.Name, func(t *testing.T) {
+				if alreadyFailed {
+					t.Skipf("parent commands failed, so while more commands are specified, testing them is not meaningful")
+				}
+				tcfg.test(t, child, allowExec, allowScript, dir)
+			})
+		}
+	}
 
 }
 
@@ -325,4 +349,40 @@ func createFiles(dir *testmark.DirEnt, prefix string) error {
 		}
 	}
 	return nil
+}
+
+// copyFiles does what it says on the tin, recursively,
+// and handles dirs, files, and symlinks, with basic posix perms (the 0777 bits).
+// It doesn't pay attention to dev nodes, uid/gid, etc etc.
+func copyFiles(source, destination string) error {
+	var err error = filepath.Walk(source, func(path string, fileInfo os.FileInfo, err error) error {
+		var relPath string = strings.Replace(path, source, "", 1)
+		if relPath == "" {
+			return nil
+		}
+		switch fileInfo.Mode() & os.ModeType {
+		case os.ModeDir:
+			return os.Mkdir(filepath.Join(destination, relPath), fileInfo.Mode())
+		case os.ModeSymlink:
+			link, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			return os.Symlink(link, filepath.Join(destination, relPath))
+		default:
+			fnew, err := os.OpenFile(filepath.Join(destination, relPath), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fileInfo.Mode())
+			if err != nil {
+				return err
+			}
+			defer fnew.Close()
+			fold, err := os.OpenFile(path, os.O_RDONLY, 0)
+			if err != nil {
+				return err
+			}
+			defer fold.Close()
+			_, err = io.Copy(fnew, fold)
+			return err
+		}
+	})
+	return err
 }
