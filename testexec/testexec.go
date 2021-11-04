@@ -179,8 +179,14 @@ func (tcfg Tester) test(t *testing.T, data testmark.DirEnt, allowExec, allowScri
 	}
 
 	// Create a tempdir, and fill it with any files.
+	// (This used to be conditional on if this test, or any parents, had use of a 'fs/*' hunk...
+	//  but in v0.9.0, we started making tmpdirs unconditionally, because it's fairly common for
+	//   a test script to start of with commands that initialize a filesystem, and
+	//    forcing such tests to start with a dummy 'fs/this-is-not-relevant' hunk seemed unfortunate.
+	//  I've left the flow as written earlier, in case we want to make a flag to *dis*able this again.)
 	var dir string
-	if fsEnt, exists := data.Children["fs"]; exists || parentTmpdir != "" {
+	useTmpdirs := true // This was previously conditional: `fsEnt, exists := data.Children["fs"]; exists || parentTmpdir != ""`
+	if useTmpdirs {
 		// Create and get into a tempdir.
 		var err error
 		dir, err = ioutil.TempDir("", "testmarkexec")
@@ -205,6 +211,7 @@ func (tcfg Tester) test(t *testing.T, data testmark.DirEnt, allowExec, allowScri
 		}
 
 		// Create any new files.
+		fsEnt := data.Children["fs"]
 		if fsEnt != nil {
 			if err := createFiles(fsEnt, "."); err != nil {
 				t.Errorf("test aborted: could not populate files to tempdir: %s", err)
