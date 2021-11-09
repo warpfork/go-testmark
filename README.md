@@ -24,6 +24,11 @@ Read on:
 - [The Testmark Format](#what-is-the-testmark-format)
 	- [Examples](#testmark-format-by-example)
 	- [Purpose](#the-purpose-of-testmark)
+- [Implementations](#implementations)
+	- [go-testmark](#go-testmark)
+	- [js-testmark](#js-testmark)
+	- [rust-testmark](#rust-testmark)
+	- [your-language-here-testmark](#your-language-here-testmark)
 - [The go-testmark Library](#this-is-go-testmark)
 	- [Features](#features)
 		- [Parsing](#parsing)
@@ -134,6 +139,35 @@ tl;dr: deduplicate the work of spec fixtures and docs, both saving time, and get
 
 See [README_parsing](README_parsing.md) if you would like to write a testmark parser in another language.
 It's _extremely_ straightforward.
+
+
+Implementations
+---------------
+
+Testmark has implementations in a variety of languages already!
+
+### go-testmark
+
+It's right here :) https://github.com/warpfork/go-testmark/
+
+### js-testmark
+
+Check out https://github.com/rvagg/js-testmark/ !
+
+### rust-testmark
+
+Check out https://github.com/bsundsrud/rust-testmark !
+
+### your-language-here-testmark
+
+It is _extremely easy_ to write new testmark parsers.
+
+The average time taken to produce a testmark library in a new language empirically appears to be about 5 hours.
+It's significantly less than a day's work.
+
+See [README_parsing](README_parsing.md) for a guide.
+
+Send us a note (or a PR to this list!) when you publish it!
 
 
 This is go-testmark
