@@ -32,6 +32,8 @@ Read on:
 		- [Writing](#writing)
 	- [Examples](#examples)
 		- [Examples in the Wild](#examples-in-the-wild)
+	- [Extensions](#extensions)
+		- [The `testexec` Convention](#the-testexec-convention)
 - [License](#license)
 - [Acknowledgements](#acknowledgements)
 
@@ -216,6 +218,41 @@ Check out how the IPLD project uses testmark:
   [ipld/specs/selectors/selector-fixtures-1](https://github.com/ipld/ipld/blob/17fd0efb695eb4933a68ca55d48c8e1dd765734b/specs/selectors/fixtures/selector-fixtures-1.md)
 - This code reads that document, and in a handful of lines, iterates over the "directories" of hunks, and then plucks data out of them:
   [go-ipld/selector/spec_test.go](https://github.com/ipld/go-ipld-prime/blob/5c39e6803594f599a85d2545ad72faf584bf6f19/traversal/selector/spec_test.go#L29-L39)
+
+### Extensions
+
+Testmark can be "extended" by giving behaviors to certain conventions of data hunk names.
+(These aren't changing the serial format at all -- just decorating it with behaviors, by writing reusable test code against a naming convention.)
+
+It's easy to build these kinds of extensions and conventions on top of a testmark library.
+They don't need to be integrated!  You can develop your reusable test code wherever and however you want.
+
+As a general rule, an "extension" tends to take the form of a function,
+and it simply takes a parsed testmark document as a parameter,
+and optionally a patch accumulator object (or just a filename).
+You have to call the extension yourself in your test code.
+(This means there's no plugin arcitecture to worry about.
+You also never need to fear an extension giving magic special meaning to a hunk name that you didn't expect.
+You just... call the code you want, and that's it.)
+
+Some testmark libraries may also bundle some extensions (for convenience),
+and try to form relatively well-known conventions.
+We have at least one of these in go-testmark; see below.
+
+#### The `testexec` Convention
+
+The "testexec" convention is for testing CLI programs quickly and conveniently.
+
+Long story short: you make a hunk called `mytest/script` and put commands in it,
+and a hunk called `mytest/output` and put the expected output in it, and you're already good to go.
+
+(No, this is not enabled by default.  You'll have to call a function in your test code explicitly to use this behavior.)
+
+There's a bunch more features too, like ways to check exit codes,
+ways to check stdout and stderr streams separately,
+ways to populate fixture filesystems (using hunks like `mytest/fs/dirname/filename.ext`), etc.
+See that package for more details!
+
 
 
 License
