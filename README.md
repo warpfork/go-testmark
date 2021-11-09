@@ -30,6 +30,7 @@ Read on:
 		- [Walking](#walking-and-indexing)
 		- [Patching](#patching)
 		- [Writing](#writing)
+		- [Autopatching](#autopatching)
 	- [Examples](#examples)
 		- [Examples in the Wild](#examples-in-the-wild)
 	- [Extensions](#extensions)
@@ -205,6 +206,22 @@ it's better to just write that yourself, in an editor or with other tools fit fo
 
 (You probably can start with an empty document and just patch hunk into it, and it'll be fine.
 It's just dubious if you'll really want to do that in practice.)
+
+#### autopatching
+
+`go-testmark` supports automatically regenerating fixtures.
+
+Use the `-testmark.regen` flag during testing.  E.g., `go test ./... -testmark.regen`.
+
+If you're using [extensions](#extensions) like [testexec](#the-testexec-convention), it'll automatically do the right thing for you.
+If you're writing your own tests, you will need to wire up patching and check the [Regen flag](https://pkg.go.dev/github.com/warpfork/go-testmark#Regen)
+in order to take advantage of this.  (Testmark can't read your mind on data sources and what should be patched unfortunately.)
+
+Use this kind of regeneration when you make a change to code and would rather review the result via
+something like `git diff` instead of editing the fixture content manually.
+It's a huge timesaver.
+
+It's also great for just making blank hunks and filling them in the first time, quickly and easily.
 
 ### Examples
 
