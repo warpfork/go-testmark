@@ -239,12 +239,20 @@ func (tcfg Tester) test(t *testing.T, data testmark.DirEnt, allowExec, allowScri
 	}
 	var exitcode int
 
+	// Prepare an input buffer, if applicable.
+	var stdin io.Reader
+	if ent := data.Children["input"]; ent != nil {
+		stdin = bytes.NewReader(ent.Hunk.Body)
+	} else {
+		stdin = bytes.NewReader(nil)
+	}
+
 	// Do the thing.
 	switch {
 	case sequenceMode:
-		exitcode = tcfg.doSequence(t, sequenceHunk.Hunk, stdout, stderr)
+		exitcode = tcfg.doSequence(t, sequenceHunk.Hunk, stdin, stdout, stderr)
 	case scriptMode:
-		exitcode = tcfg.doScript(t, scriptHunk.Hunk, stdout, stderr)
+		exitcode = tcfg.doScript(t, scriptHunk.Hunk, stdin, stdout, stderr)
 	}
 
 	// Okay, comparisons time.
@@ -308,7 +316,7 @@ func (tcfg Tester) test(t *testing.T, data testmark.DirEnt, allowExec, allowScri
 
 }
 
-func (tcfg Tester) doSequence(t *testing.T, hunk *testmark.Hunk, stdout, stderr io.Writer) (exitcode int) {
+func (tcfg Tester) doSequence(t *testing.T, hunk *testmark.Hunk, stdin io.Reader, stdout, stderr io.Writer) (exitcode int) {
 	t.Helper()
 	// Loop over the lines in the sequence.
 	lines := bytes.Split(hunk.Body, []byte{'\n'})
@@ -319,7 +327,7 @@ func (tcfg Tester) doSequence(t *testing.T, hunk *testmark.Hunk, stdout, stderr 
 		}
 
 		var err error
-		exitcode, err = tcfg.ExecFn(args, bytes.NewReader(nil), stdout, stderr)
+		exitcode, err = tcfg.ExecFn(args, stdin, stdout, stderr)
 		if err != nil {
 			t.Fatalf("execution failed: error from ExecFn is %q", err)
 		}
@@ -330,10 +338,10 @@ func (tcfg Tester) doSequence(t *testing.T, hunk *testmark.Hunk, stdout, stderr 
 	return
 }
 
-func (tcfg Tester) doScript(t *testing.T, hunk *testmark.Hunk, stdout, stderr io.Writer) (exitcode int) {
+func (tcfg Tester) doScript(t *testing.T, hunk *testmark.Hunk, stdin io.Reader, stdout, stderr io.Writer) (exitcode int) {
 	t.Helper()
 	var err error
-	exitcode, err = tcfg.ScriptFn(string(hunk.Body), bytes.NewReader(nil), stdout, stderr)
+	exitcode, err = tcfg.ScriptFn(string(hunk.Body), stdin, stdout, stderr)
 	if err != nil {
 		t.Fatalf("execution failed: error from script is %q", err)
 	}

@@ -79,3 +79,23 @@ a
 c
 body-c
 ```
+
+---
+
+Stdin can also be emulated:
+
+[testmark]:# (using-stdin/input)
+```
+this is stdin and will be echoed
+```
+
+
+[testmark]:# (using-stdin/script)
+```
+cat - | sed 's/ is/ was/'  | sed s/will/should/
+```
+
+[testmark]:# (using-stdin/output)
+```
+this was stdin and should be echoed
+```
