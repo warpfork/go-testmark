@@ -28,6 +28,7 @@ Read on:
 	- [go-testmark](#go-testmark)
 	- [js-testmark](#js-testmark)
 	- [rust-testmark](#rust-testmark)
+	- [python-testmark](#python-testmark)
 	- [your-language-here-testmark](#your-language-here-testmark)
 - [The go-testmark Library](#this-is-go-testmark)
 	- [Features](#features)
@@ -157,6 +158,10 @@ Check out https://github.com/rvagg/js-testmark/ !
 ### rust-testmark
 
 Check out https://github.com/bsundsrud/rust-testmark !
+
+### python-testmark
+
+Check out https://github.com/iameru/python-testmark !
 
 ### your-language-here-testmark
 
