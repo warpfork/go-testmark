@@ -23,7 +23,12 @@ func ReadFile(name string) (*Document, error) {
 		return nil, err
 	}
 	defer f.Close()
-	return Read(f)
+	doc, err := Read(f)
+	if err != nil {
+		return nil, err
+	}
+	doc.Path = name
+	return doc, nil
 }
 
 var (

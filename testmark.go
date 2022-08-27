@@ -1,5 +1,8 @@
 package testmark
 
+import "fmt"
+import "sort"
+
 type Document struct {
 	// The whole thing, complete, but split into lines.
 	// We always save this, because if we are going to write this document back out,
@@ -23,6 +26,9 @@ type Document struct {
 	// meaning they're split by slashes, and each segment is considered a directory.
 	// You must call the `BuildDirIndex()` function to cause this to be populated.
 	DirEnt *DirEnt
+
+	// If Document is created by ReadFile it will store the document path
+	Path string
 }
 
 // DocHunk is the Document's internal idea of where hunks are.
@@ -73,4 +79,26 @@ type DirEnt struct {
 	// Children, recursively.
 	Children     map[string]*DirEnt
 	ChildrenList []DirEnt
+}
+
+func (doc *Document) describe(ent *DirEnt) []string {
+	result := []string{}
+	if ent == nil {
+		return result
+	}
+	if ent.Hunk != nil {
+		loc := doc.HunksByName[ent.Hunk.Name].LineStart + 1
+		s := fmt.Sprintf("%s:%d:%s", doc.Path, loc, ent.Hunk.Name)
+		result = append(result, s)
+	}
+	for _, child := range ent.ChildrenList {
+		result = append(result, doc.describe(&child)...)
+	}
+	return result
+}
+
+func (doc *Document) Describe(ent *DirEnt) []string {
+	result := doc.describe(ent)
+	sort.Strings(result)
+	return result
 }

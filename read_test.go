@@ -14,10 +14,12 @@ func TestRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	doc, err := testmark.ReadFile(filepath.Join(testdata, "example.md"))
+	path := filepath.Join(testdata, "example.md")
+	doc, err := testmark.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
+	assert(t, doc.Path, path)
 
 	readFixturesExample(t, doc)
 }
