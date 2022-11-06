@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	qt "github.com/frankban/quicktest"
+
 	"github.com/warpfork/go-testmark"
 )
 
@@ -53,4 +55,12 @@ func TestParseCRLF(t *testing.T) {
 	}
 
 	readFixturesExample(t, doc)
+}
+
+func TestDuplicateHunk(t *testing.T) {
+	testdata, err := filepath.Abs("testdata")
+	qt.Assert(t, err, qt.IsNil)
+	mdPath := filepath.Join(testdata, "exampleWithDuplicateHunks.md")
+	_, err = testmark.ReadFile(mdPath)
+	qt.Assert(t, err, qt.ErrorMatches, "repeated testmark hunk name \"one/two/three\".*")
 }
