@@ -92,10 +92,10 @@ func ExampleReadDirFile() {
 	// 2: "this-is-the-data-name"
 }
 
+// Generally true as of this writing
+// A directory will return true on IsDir
+// A file with data will have a non-zero size
 func ExampleIsItAFileOrADirectory() {
-	// Generally true as of this writing
-	// A directory will return true on IsDir
-	// A file with data will have a non-zero size
 	testdata, _ := filepath.Abs("testdata")
 	doc, _ := testmark.ReadFile(filepath.Join(testdata, "exampleWithDirs.md"))
 	{
@@ -117,6 +117,19 @@ func ExampleIsItAFileOrADirectory() {
 	// the root dir is not a file: "",0,true
 	// this path is a dir AND a regular file: "one",4,true
 	// this path is a file but NOT a dir: "bang",4,false
+}
+
+func ExampleConvertFileToDirEnt() {
+	testdata, _ := filepath.Abs("testdata")
+	doc, _ := testmark.ReadFile(filepath.Join(testdata, "example.md"))
+	f, _ := doc.Open("more-data")
+	stat, _ := f.Stat()
+	ent := stat.Sys().(*testmark.DirEnt)
+	fmt.Print(string(ent.Hunk.Body))
+	// Output:
+	// func OtherMarkdownParsers() (shouldHighlight bool) {
+	// 	return true
+	// }
 }
 
 // TestWalkDocument tests the implementation of fs.WalkDir against a Document
