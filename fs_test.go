@@ -86,10 +86,37 @@ func ExampleReadDirFile() {
 	for i, d := range dirs {
 		fmt.Printf("%d: %q\n", i, d.Name())
 	}
-	// Output
+	// Output:
 	// 0: "cannot-describe-no-linebreak"
 	// 1: "more-data"
 	// 2: "this-is-the-data-name"
+}
+
+func ExampleIsItAFileOrADirectory() {
+	// Generally true as of this writing
+	// A directory will return true on IsDir
+	// A file with data will have a non-zero size
+	testdata, _ := filepath.Abs("testdata")
+	doc, _ := testmark.ReadFile(filepath.Join(testdata, "exampleWithDirs.md"))
+	{
+		f, _ := doc.Open("")
+		stat, _ := f.Stat()
+		fmt.Printf("the root dir is not a file: %q,%d,%t\n", stat.Name(), stat.Size(), stat.IsDir())
+	}
+	{
+		f, _ := doc.Open("one")
+		stat, _ := f.Stat()
+		fmt.Printf("this path is a dir AND a regular file: %q,%d,%t\n", stat.Name(), stat.Size(), stat.IsDir())
+	}
+	{
+		f, _ := doc.Open("one/four/bang")
+		stat, _ := f.Stat()
+		fmt.Printf("this path is a file but NOT a dir: %q,%d,%t\n", stat.Name(), stat.Size(), stat.IsDir())
+	}
+	// Output:
+	// the root dir is not a file: "",0,true
+	// this path is a dir AND a regular file: "one",4,true
+	// this path is a file but NOT a dir: "bang",4,false
 }
 
 // TestWalkDocument tests the implementation of fs.WalkDir against a Document
