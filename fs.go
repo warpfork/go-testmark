@@ -10,6 +10,8 @@ import (
 // We don't implement writing to hunks through this interface so everything is read-only
 const defaultFileMode fs.FileMode = 0444
 
+// MultiDoc allows combining multiple documents into a single entity for ease of use.
+// This can be used to spread hunks across multiple real files or other sources.
 type MultiDoc struct {
 	// DocByHunkName allows you to get back to the original document for a hunk.
 	// This would be necessary for the patching features and any other time you need
@@ -20,6 +22,10 @@ type MultiDoc struct {
 	Document
 }
 
+// Add will combine the given Document with this MultiDoc.
+// If a duplicate hunk is found, an fs.PathError will be returned.
+// Add will check for duplicates before mutating the MultiDoc; however, this is NOT threadsafe.
+// Add will not mutate the given Document.
 func (d *MultiDoc) Add(doc *Document) error {
 	if d.DocByHunkName == nil {
 		d.DocByHunkName = make(map[string]*Document)
@@ -42,7 +48,8 @@ func (d *MultiDoc) Add(doc *Document) error {
 	return nil
 }
 
-// File implements both fs.File and fs.DirEntry
+// File is a representation of DirEnt used when working with Documents as an fs.FS
+// Generally this is done by calling Document.Open or using a function from the fs package.
 type File struct {
 	// buffer contains the hunk data after opening
 	// a nil buffer implies that the file is closed
@@ -134,6 +141,7 @@ func (f *File) Close() error {
 	return nil
 }
 
+// fileStat stores data as an implementation of fs.FileInfo
 type fileStat struct {
 	name string
 	size int64
@@ -181,7 +189,7 @@ func (s fileStat) Sys() interface{} {
 // with the Op field set to "open", the Path field set to name,
 // and the Err field describing the problem.
 //
-// Open does NOT follow conventions for fs.ValidPath(name)
+// Open does NOT follow conventions for fs.ValidPath.
 // Opening an empty path will return the root directory for the document.
 // This is different than the fs.ValidPath special case of using "." as the root path.
 // The testmark document treats "." and ".." the same as any other character.
@@ -199,6 +207,7 @@ func (doc *Document) Open(name string) (fs.File, error) {
 	return ent.file(), nil
 }
 
+// file returns the File representation of a DirEnt.
 func (d *DirEnt) file() *File {
 	size := int64(0)
 	buf := bytes.NewBuffer([]byte{})
@@ -231,6 +240,8 @@ func (d *DirEnt) file() *File {
 	}
 }
 
+// findDir will traverse down a DirEnt by each path split and return a DirEnt for that path if it exists.
+// Otherwise, findDir will return nil.
 func findDir(dir *DirEnt, pathsplits ...string) *DirEnt {
 	if len(pathsplits) == 0 {
 		return dir
