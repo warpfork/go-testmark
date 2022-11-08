@@ -10,6 +10,38 @@ import (
 // We don't implement writing to hunks through this interface so everything is read-only
 const defaultFileMode fs.FileMode = 0444
 
+type MultiDoc struct {
+	// DocByHunkName allows you to get back to the original document for a hunk.
+	// This would be necessary for the patching features and any other time you need
+	// features of the original document
+	DocByHunkName map[string]*Document
+	// Document that stores the combined set of hunks
+	// Original and Lines will not be relevant in this case
+	Document
+}
+
+func (d *MultiDoc) Add(doc *Document) error {
+	if d.DocByHunkName == nil {
+		d.DocByHunkName = make(map[string]*Document)
+	}
+	if d.Document.DataHunks == nil {
+		d.Document.HunksByName = make(map[string]DocHunk)
+	}
+	for _, hunk := range doc.DataHunks {
+		// Guard against mutating a DocFS that already has hunks of a particular name
+		// TODO: add merge strategies to allow overwrite
+		if _, exists := d.HunksByName[hunk.Name]; exists {
+			return &fs.PathError{Op: "add", Path: hunk.Name, Err: fs.ErrExist}
+		}
+	}
+	for _, hunk := range doc.DataHunks {
+		d.DocByHunkName[hunk.Name] = doc
+		d.HunksByName[hunk.Name] = hunk
+		d.DataHunks = append(d.DataHunks, hunk)
+	}
+	return nil
+}
+
 // File implements both fs.File and fs.DirEntry
 type File struct {
 	// buffer contains the hunk data after opening

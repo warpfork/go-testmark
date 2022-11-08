@@ -198,3 +198,79 @@ func TestOpenFileDir(t *testing.T) {
 	qt.Assert(t, stat.Name(), qt.Equals, "one")
 	qt.Assert(t, stat.Size(), qt.Equals, int64(len(data)))
 }
+
+func ExampleMultiDocumentFS() {
+	testdata, _ := filepath.Abs("testdata")
+	doc1, _ := testmark.ReadFile(filepath.Join(testdata, "exampleWithDirs.md"))
+	doc2, _ := testmark.ReadFile(filepath.Join(testdata, "example.md"))
+	doc := &testmark.MultiDoc{}
+	doc.Add(doc1) // ignoring errors
+	doc.Add(doc2) // ignoring errors
+	f, _ := doc.Open("")
+
+	fr := f.(fs.ReadDirFile)
+	dirs, _ := fr.ReadDir(-1)
+	for i, d := range dirs {
+		fmt.Printf("%d: %q\n", i, d.Name())
+	}
+	// Output:
+	// 0: "cannot-describe-no-linebreak"
+	// 1: "more-data"
+	// 2: "one"
+	// 3: "really"
+	// 4: "this-is-the-data-name"
+}
+
+func TestMultiDocumentFS(t *testing.T) {
+	testdata, err := filepath.Abs("testdata")
+	qt.Assert(t, err, qt.IsNil)
+
+	doc1, err := testmark.ReadFile(filepath.Join(testdata, "exampleWithDirs.md"))
+	qt.Assert(t, err, qt.IsNil)
+
+	doc2, err := testmark.ReadFile(filepath.Join(testdata, "example.md"))
+	qt.Assert(t, err, qt.IsNil)
+
+	t.Run("fails when adding twice", func(t *testing.T) {
+		doc := &testmark.MultiDoc{}
+		qt.Assert(t, doc.Add(doc1), qt.IsNil)
+		err := doc.Add(doc1)
+		pathErr := new(fs.PathError)
+		if qt.Check(t, err, qt.ErrorAs, &pathErr) {
+			qt.Assert(t, pathErr.Op, qt.Equals, "add")
+			qt.Assert(t, pathErr.Path, qt.Equals, "one/two")
+		}
+		qt.Assert(t, err, qt.ErrorIs, fs.ErrExist)
+	})
+
+	t.Run("combine documents", func(t *testing.T) {
+		doc := &testmark.MultiDoc{}
+		qt.Assert(t, doc.Add(doc1), qt.IsNil)
+		qt.Assert(t, doc.Add(doc2), qt.IsNil)
+		{
+
+			df1, err := doc1.Open("really/deep/dirs/wow")
+			qt.Assert(t, err, qt.IsNil)
+			mf1, err := doc.Open("really/deep/dirs/wow")
+			qt.Assert(t, err, qt.IsNil)
+			expect1, err := io.ReadAll(df1)
+			qt.Assert(t, err, qt.IsNil)
+			result1, err := io.ReadAll(mf1)
+			qt.Assert(t, err, qt.IsNil)
+			qt.Assert(t, string(result1), qt.Equals, string(expect1))
+			qt.Assert(t, string(result1), qt.Equals, "zot\n")
+		}
+		{
+			df2, err := doc2.Open("cannot-describe-no-linebreak")
+			qt.Assert(t, err, qt.IsNil)
+			mf2, err := doc.Open("cannot-describe-no-linebreak")
+			qt.Assert(t, err, qt.IsNil)
+			expect2, err := io.ReadAll(df2)
+			qt.Assert(t, err, qt.IsNil)
+			result2, err := io.ReadAll(mf2)
+			qt.Assert(t, err, qt.IsNil)
+			qt.Assert(t, string(result2), qt.Equals, string(expect2))
+			qt.Assert(t, string(result2), qt.Equals, string("A markdown codeblock always has a trailing linebreak before its close indicator, you see.\n"))
+		}
+	})
+}
