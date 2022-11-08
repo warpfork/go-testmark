@@ -187,10 +187,7 @@ func (s fileStat) Sys() interface{} {
 // The testmark document treats "." and ".." the same as any other character.
 func (doc *Document) Open(name string) (fs.File, error) {
 	if doc.DirEnt == nil {
-		err := doc.BuildDirIndex()
-		if err != nil {
-			return nil, err
-		}
+		doc.BuildDirIndex()
 	}
 	if name == "" {
 		return doc.DirEnt.file(), nil
