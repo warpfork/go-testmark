@@ -3,7 +3,6 @@ package testmark
 import (
 	"bytes"
 	"io/fs"
-	"path"
 	"sort"
 	"time"
 )
@@ -103,41 +102,42 @@ func (f *File) Close() error {
 	return nil
 }
 
-// There's basically nothing meaningful in the fileStat structure
 type fileStat struct {
 	name string
-	// size is generally the number of directory entires or the length of the file in bytes.
-	// We have to choose one or the other because files and directories can overlap
-	// In my opinion it's best to go with file length, so directories will always have a size of zero.
 	size int64
 	mode fs.FileMode
 	sys  interface{}
 }
 
-//IsDir will be true if a DirEnt has children
+// IsDir will be true if a DirEnt has children
 func (s fileStat) IsDir() bool {
 	return s.mode.IsDir()
 }
 
 // ModTime is meaningless. Testmark hunks don't have a modtime
+// ModTime will always return a time.Time zero value
 func (fileStat) ModTime() time.Time {
 	return time.Time{}
 }
 
-// Mode is meaningless for testmark "files"
+// Mode returns the FileMode for the file.
+// The filemode will have the fs.ModeDir bit enabled if the File contains references to children
 func (s fileStat) Mode() fs.FileMode {
 	return s.mode
 }
 
-// base name of the file
+// Name returns the base name of the file
 func (s fileStat) Name() string {
 	return s.name
 }
 
+// Size returns the size of the underlying hunk when the file was opened
 func (s fileStat) Size() int64 {
 	return s.size
 }
 
+// Sys returns the _thing_ from whence this file came.
+// Generally that's the *DirEnt
 func (s fileStat) Sys() interface{} {
 	return s.sys
 }
@@ -170,26 +170,6 @@ func (doc *Document) Open(name string) (fs.File, error) {
 	return ent.file(), nil
 }
 
-func (h *DocHunk) file() *File {
-	buf := bytes.NewBuffer(h.Body)
-	return &File{
-		buffer:         buf,
-		stat:           h.stat(),
-		children:       make(map[string]*DirEnt),
-		childrenSorted: make([]string, 0),
-	}
-}
-
-func (h *DocHunk) stat() fileStat {
-	basename := path.Base(h.Name)
-	return fileStat{
-		name: basename,
-		mode: defaultFileMode,
-		sys:  h,
-		size: int64(len(h.Body)),
-	}
-}
-
 func (d *DirEnt) file() *File {
 	size := int64(0)
 	buf := bytes.NewBuffer([]byte{})
@@ -214,6 +194,9 @@ func (d *DirEnt) file() *File {
 			name: d.Name,
 			mode: mode,
 			sys:  d,
+			// size is generally the number of directory entires or the length of the file in bytes.
+			// We have to choose one or the other because files and directories can overlap
+			// In my opinion it's best to go with file length, so directories will always have a size of zero.
 			size: size,
 		},
 	}

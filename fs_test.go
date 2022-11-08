@@ -1,6 +1,7 @@
 package testmark_test
 
 import (
+	"fmt"
 	"io"
 	"io/fs"
 	"path/filepath"
@@ -11,9 +12,15 @@ import (
 	"github.com/warpfork/go-testmark"
 )
 
-var _ fs.DirEntry = &testmark.File{}
-var _ fs.File = &testmark.File{}
+// Assert the implementation of various interfaces in the "fs" package
+var (
+	_ fs.DirEntry    = &testmark.File{}
+	_ fs.File        = &testmark.File{}
+	_ fs.FS          = &testmark.Document{}
+	_ fs.ReadDirFile = &testmark.File{}
+)
 
+// TestFS tests some basic assertions about the *Document implementation of the fs.FS interface
 func TestFS(t *testing.T) {
 	testdata, err := filepath.Abs("testdata")
 	qt.Assert(t, err, qt.IsNil)
@@ -42,7 +49,51 @@ func TestFS(t *testing.T) {
 	})
 }
 
-func TestWalk(t *testing.T) {
+func ExampleWalkDocument() {
+	testdata, _ := filepath.Abs("testdata")
+	doc, _ := testmark.ReadFile(filepath.Join(testdata, "example.md"))
+	counter := 0
+	fs.WalkDir(doc, "", func(path string, dir fs.DirEntry, err error) error {
+		fmt.Printf("%d: %q\n", counter, path)
+		counter++
+		return nil
+	})
+	// Output:
+	// 0: ""
+	// 1: "cannot-describe-no-linebreak"
+	// 2: "more-data"
+	// 3: "this-is-the-data-name"
+}
+
+func ExampleRead() {
+	testdata, _ := filepath.Abs("testdata")
+	doc, _ := testmark.ReadFile(filepath.Join(testdata, "example.md"))
+	f, _ := doc.Open("more-data")
+	content, _ := io.ReadAll(f)
+	fmt.Print(string(content))
+	// Output:
+	// func OtherMarkdownParsers() (shouldHighlight bool) {
+	// 	return true
+	// }
+}
+
+func ExampleReadDirFile() {
+	testdata, _ := filepath.Abs("testdata")
+	doc, _ := testmark.ReadFile(filepath.Join(testdata, "example.md"))
+	f, _ := doc.Open("")
+	fr := f.(fs.ReadDirFile)
+	dirs, _ := fr.ReadDir(-1)
+	for i, d := range dirs {
+		fmt.Printf("%d: %q\n", i, d.Name())
+	}
+	// Output
+	// 0: "cannot-describe-no-linebreak"
+	// 1: "more-data"
+	// 2: "this-is-the-data-name"
+}
+
+// TestWalkDocument tests the implementation of fs.WalkDir against a Document
+func TestWalkDocument(t *testing.T) {
 	qt.Assert(t, fs.ValidPath("."), qt.IsTrue)
 	testdata, err := filepath.Abs("testdata")
 	qt.Assert(t, err, qt.IsNil)
