@@ -49,6 +49,30 @@ func TestFS(t *testing.T) {
 	})
 }
 
+func TestFSGlob(t *testing.T) {
+	testdata, err := filepath.Abs("testdata")
+	qt.Assert(t, err, qt.IsNil)
+
+	doc, err := testmark.ReadFile(filepath.Join(testdata, "exampleWithDirs.md"))
+	qt.Assert(t, err, qt.IsNil)
+
+	matches, err := fs.Glob(doc, "one/t*")
+	qt.Assert(t, err, qt.IsNil)
+	qt.Assert(t, matches, qt.DeepEquals, []string{"one/three", "one/two"})
+}
+
+func TestFSReadFile(t *testing.T) {
+	testdata, err := filepath.Abs("testdata")
+	qt.Assert(t, err, qt.IsNil)
+
+	doc, err := testmark.ReadFile(filepath.Join(testdata, "exampleWithDirs.md"))
+	qt.Assert(t, err, qt.IsNil)
+
+	data, err := fs.ReadFile(doc, "one")
+	qt.Assert(t, err, qt.IsNil)
+	qt.Assert(t, string(data), qt.Equals, "baz\n")
+}
+
 func ExampleWalkDocument() {
 	testdata, _ := filepath.Abs("testdata")
 	doc, _ := testmark.ReadFile(filepath.Join(testdata, "example.md"))
@@ -133,7 +157,7 @@ func ExampleConvertFileToDirEnt() {
 }
 
 // TestWalkDocument tests the implementation of fs.WalkDir against a Document
-func TestWalkDocument(t *testing.T) {
+func TestFSWalkDocument(t *testing.T) {
 	qt.Assert(t, fs.ValidPath("."), qt.IsTrue)
 	testdata, err := filepath.Abs("testdata")
 	qt.Assert(t, err, qt.IsNil)
@@ -209,7 +233,7 @@ func TestWalkDocument(t *testing.T) {
 
 // This is a weird edge of object filesystems where pseudo-dirs and files can overlap.
 // We don't really have a great way of handling this. Just, some files are also directories. The end.
-func TestOpenFileDir(t *testing.T) {
+func TestFSOpenFileDir(t *testing.T) {
 	testdata, err := filepath.Abs("testdata")
 	qt.Assert(t, err, qt.IsNil)
 
