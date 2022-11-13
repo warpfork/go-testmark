@@ -67,6 +67,9 @@ type DirEnt struct {
 	// (Note that if there's a Hunk in this DirEnt, its name may be different -- it still has the *full* path name.)
 	Name string
 
+	// The fullpath
+	Path string
+
 	// A hunk, or nil.
 	Hunk *Hunk
 
