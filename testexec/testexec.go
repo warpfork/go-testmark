@@ -10,7 +10,6 @@ package testexec
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"io/ioutil"
 	"os"
@@ -51,18 +50,6 @@ type FilterFn func(line string) (replacement string)
 // The default behavior, if a Tester object doesn't get an AssertFn, is to fall back to a very basic call to `t.Errorf`.
 type AssertFn func(t *testing.T, actual, expect string)
 
-var (
-	// SkipRecursion can be returned by a RecursionFn for paths that should show up in the test as skipped
-	SkipRecursion = errors.New("skip this directory")
-	// IgnoreRecursion can be returned by a RecursionFn for paths that should not run a new test at all
-	IgnoreRecursion = errors.New("ignore this directory")
-)
-
-// RecursionFn can be used in Tester to specify a recursion pattern
-// The default recursion pattern will recurse whenever it finds "then-"
-// Returning a non-nil error will cause the test for the directory to fail unless the error is a SkipRecursion or IgnoreRecursion error
-type RecursionFn func(*testing.T, testmark.DirEnt) error
-
 // Tester is a configuration-gathering structure.
 // Each of the `Test*` methods upon it will use these callbacks to define their behavior.
 //
@@ -79,9 +66,10 @@ type Tester struct {
 	ScriptFn
 	FilterFn
 	AssertFn
-	RecursionFn
 
 	Patches *testmark.PatchAccumulator
+	// Will allow unrecognized directory structures.
+	DisableStrictMode bool
 }
 
 func (tcfg *Tester) init() {
@@ -175,20 +163,40 @@ func (tcfg Tester) test(t *testing.T, data *testmark.DirEnt, allowExec, allowScr
 	sequenceHunk, sequenceMode := data.Children["sequence"]
 	scriptHunk, scriptMode := data.Children["script"]
 	if !sequenceMode && !scriptMode {
-		t.Skipf("dir %q does not contain a 'script' or 'sequence' hunk and will be skipped", data.Name)
+		t.Logf("dir %q does not contain a 'script' or 'sequence' hunk", data.Path)
+		if tcfg.DisableStrictMode {
+			t.SkipNow()
+		}
+		t.FailNow()
 	}
 	if sequenceMode && scriptMode {
-		t.Skipf("warning: dir %q contained both a 'script' and a 'sequence' hunk, which is nonsensical", data.Name)
+		t.Logf("dir %q contained both a 'script' and a 'sequence' hunk, which is nonsensical", data.Path)
+		if tcfg.DisableStrictMode {
+			t.SkipNow()
+		}
+		t.FailNow()
 	}
 	if sequenceMode && !allowExec {
-		t.Skipf("found sequence hunk but the test framework was invoked without permission to run those")
+		t.Log("found sequence hunk but the test framework was invoked without permission to run those")
+		if tcfg.DisableStrictMode {
+			t.SkipNow()
+		}
+		t.FailNow()
 	}
 	if scriptMode && !allowScript {
-		t.Skipf("found script hunk but the test framework was invoked without permission to run those")
+		t.Log("found script hunk but the test framework was invoked without permission to run those")
+		if tcfg.DisableStrictMode {
+			t.SkipNow()
+		}
+		t.FailNow()
 	}
 	if *testmark.Regen && tcfg.Patches == nil {
-		t.Logf("warning: testmark.regen mode engaged, but there is no patch accumulator available here")
-		t.Skipf("nothing to do if requested to regenerate test fixtures but have nowhere to put data")
+		t.Logf("testmark.regen mode engaged, but there is no patch accumulator available here")
+		t.Logf("nothing to do if requested to regenerate test fixtures but have nowhere to put data")
+		if tcfg.DisableStrictMode {
+			t.SkipNow()
+		}
+		t.FailNow()
 	}
 
 	// Create a tempdir, and fill it with any files.
@@ -263,14 +271,17 @@ func (tcfg Tester) test(t *testing.T, data *testmark.DirEnt, allowExec, allowScr
 	// Do the thing.
 	switch {
 	case sequenceMode:
+		t.Logf("exec: %q", sequenceHunk.Hunk.Name)
 		exitcode = tcfg.doSequence(t, sequenceHunk.Hunk, stdin, stdout, stderr)
 	case scriptMode:
+		t.Logf("exec: %q", scriptHunk.Hunk.Name)
 		exitcode = tcfg.doScript(t, scriptHunk.Hunk, stdin, stdout, stderr)
 	}
 
 	// Okay, comparisons time.
 	// Or, regen time!
 	if ent, exists := data.Children["output"]; exists {
+		// stdout buffer should be prepared to be both stdout and stderr earlier before execution.
 		bs := stdout.(*bytes.Buffer).Bytes()
 		if *testmark.Regen {
 			tcfg.Patches.AppendPatchIfBodyDiffers(*ent.Hunk, bs)
@@ -315,34 +326,44 @@ func (tcfg Tester) test(t *testing.T, data *testmark.DirEnt, allowExec, allowScr
 	tcfg.recurse(t, data, allowExec, allowScript, dir)
 }
 
-func (tcfg Tester) recurse(t *testing.T, data testmark.DirEnt, allowExec bool, allowScript bool, parentTmpDir string) {
-	if tcfg.RecursionFn == nil {
-		tcfg.RecursionFn = RecursionFn_Then
-	}
+func (tcfg Tester) recurse(t *testing.T, data *testmark.DirEnt, allowExec bool, allowScript bool, parentTmpDir string) {
+	alreadyFailed := t.Failed()
 	for _, child := range data.ChildrenList {
-		recurseErr := tcfg.RecursionFn(t, child)
-		if errors.Is(recurseErr, IgnoreRecursion) {
+		if _, exists := leafNodeTable[child.Name]; exists {
+			t.Logf("%s will not recurse into special leaf node %q", t.Name(), child.Name)
 			continue
 		}
-		alreadyFailed := t.Failed()
 		t.Run(child.Name, func(t *testing.T) {
+			if len(child.Name) <= 5 || !strings.HasPrefix(child.Name, "then-") {
+				t.Logf("%q does not begin with %q", child.Name, "then-")
+				if tcfg.DisableStrictMode {
+					t.SkipNow()
+				}
+				t.FailNow()
+			}
 			if alreadyFailed {
+				// This comes after the recursion test because a file structure error should still fail
 				t.Skipf("parent commands failed, so while more commands are specified, testing them is not meaningful")
-			}
-			if errors.Is(recurseErr, SkipRecursion) {
-				t.Skip(recurseErr)
-			}
-			if recurseErr != nil {
-				t.Fatal(recurseErr)
 			}
 			tcfg.test(t, child, allowExec, allowScript, parentTmpDir)
 		})
 	}
 }
 
+// Hash Table of all the "special" nodes used by testexec.
+var leafNodeTable = map[string]struct{}{
+	"exitcode": {},
+	"stderr":   {},
+	"stdout":   {},
+	"output":   {},
+	"input":    {},
+	"sequence": {},
+	"script":   {},
+	"fs":       {},
+}
+
 func (tcfg Tester) doSequence(t *testing.T, hunk *testmark.Hunk, stdin io.Reader, stdout, stderr io.Writer) (exitcode int) {
 	t.Helper()
-	t.Logf("running sequence: %q", hunk.Name)
 	// Loop over the lines in the sequence.
 	lines := bytes.Split(hunk.Body, []byte{'\n'})
 	for _, line := range lines {
@@ -365,7 +386,6 @@ func (tcfg Tester) doSequence(t *testing.T, hunk *testmark.Hunk, stdin io.Reader
 
 func (tcfg Tester) doScript(t *testing.T, hunk *testmark.Hunk, stdin io.Reader, stdout, stderr io.Writer) (exitcode int) {
 	t.Helper()
-	t.Logf("running script: %q", hunk.Name)
 	var err error
 	exitcode, err = tcfg.ScriptFn(string(hunk.Body), stdin, stdout, stderr)
 	if err != nil {

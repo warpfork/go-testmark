@@ -100,22 +100,3 @@ cat - | sed 's/ is/ was/'  | sed s/will/should/
 this was stdin and should be echoed
 ```
 
----
-
-The default recursion function won't reach everything if you don't formulate your paths correctly.
-
-[testmark]:# (bad/script)
-```
-  # no-op
-```
-
-[testmark]:# (bad/then-missing-script/then-another-thing/script)
-```
-  # no-op, this will not be reached because it missing executable blocks in parent steps
-```
-
-[testmark]:# (bad/not-a-then-statement/script)
-```
-  # no-op, this script will not run because the subdirectory does not begin with "then-"
-```
-
