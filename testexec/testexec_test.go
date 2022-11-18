@@ -21,7 +21,7 @@ func Test(t *testing.T) {
 			test := testexec.Tester{
 				Patches: &patches,
 			}
-			test.TestScript(t, dir)
+			test.TestScript(t, *dir)
 		})
 	}
 	patches.WriteFileWithPatches(doc, filename)

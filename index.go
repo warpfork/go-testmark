@@ -32,10 +32,11 @@ func (dirent *DirEnt) fill(pathSegs []string, hunk Hunk) {
 		next.fill(pathSegs[1:], hunk)
 	} else {
 		l := len(dirent.ChildrenList)
-		dirent.ChildrenList = append(dirent.ChildrenList, DirEnt{
+		child := DirEnt{
 			Name: pathSegs[0],
-		})
-		dirent.Children[pathSegs[0]] = &dirent.ChildrenList[l]
+		}
+		dirent.ChildrenList = append(dirent.ChildrenList, &child)
+		dirent.Children[pathSegs[0]] = &child
 		dirent.ChildrenList[l].fill(pathSegs[1:], hunk)
 	}
 }

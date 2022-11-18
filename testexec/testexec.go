@@ -309,7 +309,7 @@ func (tcfg Tester) test(t *testing.T, data testmark.DirEnt, allowExec, allowScri
 				if alreadyFailed {
 					t.Skipf("parent commands failed, so while more commands are specified, testing them is not meaningful")
 				}
-				tcfg.test(t, child, allowExec, allowScript, dir)
+				tcfg.test(t, *child, allowExec, allowScript, dir)
 			})
 		}
 	}

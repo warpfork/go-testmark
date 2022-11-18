@@ -72,5 +72,5 @@ type DirEnt struct {
 
 	// Children, recursively.
 	Children     map[string]*DirEnt
-	ChildrenList []DirEnt
+	ChildrenList []*DirEnt
 }

@@ -63,7 +63,7 @@ func TestIndexingTree(t *testing.T) {
 			assertHunkReachable(t, doc, hunk)
 		})
 	}
-	assertChildren(t, *doc.DirEnt)
+	assertChildren(t, doc.DirEnt)
 }
 
 func assertHunkReachable(t *testing.T, doc *Document, hunk DocHunk) {
@@ -78,7 +78,7 @@ func assertHunkReachable(t *testing.T, doc *Document, hunk DocHunk) {
 	qt.Assert(t, &hunk.Hunk, qt.DeepEquals, dir.Hunk)
 }
 
-func assertChildren(t *testing.T, dir DirEnt) {
+func assertChildren(t *testing.T, dir *DirEnt) {
 	cm := make(map[string]struct{})
 	for _, child := range dir.ChildrenList {
 		{
@@ -111,7 +111,7 @@ func keys(dirs map[string]*DirEnt) []string {
 	return names
 }
 
-func names(dirs []DirEnt) []string {
+func names(dirs []*DirEnt) []string {
 	names := make([]string, 0, len(dirs))
 	for _, d := range dirs {
 		names = append(names, d.Name)
