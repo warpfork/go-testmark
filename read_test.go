@@ -18,7 +18,9 @@ func TestRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
+	if len(doc.DataHunks) != len(doc.HunksByName) {
+		t.Errorf("document hunk list has different length than hunks-by-name: %d != %d", len(doc.DataHunks), len(doc.HunksByName))
+	}
 	readFixturesExample(t, doc)
 }
 
