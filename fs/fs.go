@@ -1,4 +1,9 @@
 // EXPERIMENTAL
+// The testmark/fs package is an implementation of the io/fs interface for testmark documents.
+// Some behavior of testmark and io/fs is incompatible. Known issues include handling of
+//  relative paths and overlapping regular files with directories.
+//
+// This package isn't part of testmark's core.
 package fs
 
 import (
