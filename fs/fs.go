@@ -3,7 +3,7 @@
 // Some behavior of testmark and io/fs is incompatible. Known issues include handling of
 //  relative paths and overlapping regular files with directories.
 //
-// This package isn't part of testmark's core.
+// This package isn't part of testmark's core and breaking changes may be frequent.
 package fs
 
 import (
@@ -64,6 +64,7 @@ func (f *File) Type() fs.FileMode {
 // Read reads up to len(b) bytes from the File and stores them in b. It returns
 // the number of bytes read and any error encountered. At end of file, Read
 // returns 0, io.EOF.
+// May return fs.ErrClosed
 func (f *File) Read(b []byte) (int, error) {
 	if f.buffer == nil {
 		return 0, fs.ErrClosed
@@ -143,6 +144,7 @@ func (s fileStat) Name() string {
 }
 
 // Size returns the size of the underlying hunk when the file was opened
+// If no hunk exists for the file path then size will be the number of children for the directory.
 func (s fileStat) Size() int64 {
 	return s.size
 }
@@ -187,7 +189,7 @@ func (f *fsimpl) Open(name string) (fs.File, error) {
 
 // file returns the File representation of a DirEnt.
 func file(d *testmark.DirEnt) *File {
-	size := int64(0)
+	size := int64(len(d.Children))
 	buf := bytes.NewBuffer([]byte{})
 	if d.Hunk != nil {
 		buf = bytes.NewBuffer(d.Hunk.Body)
@@ -211,8 +213,7 @@ func file(d *testmark.DirEnt) *File {
 			mode: mode,
 			sys:  d,
 			// size is generally the number of directory entires or the length of the file in bytes.
-			// We have to choose one or the other because files and directories can overlap
-			// In my opinion it's best to go with file length, so directories will always have a size of zero.
+			// We have both, you're on your own.
 			size: size,
 		},
 	}
