@@ -1,52 +1,18 @@
-package testmark
+// EXPERIMENTAL
+package fs
 
 import (
 	"bytes"
 	"io/fs"
 	"sort"
+	"strings"
 	"time"
+
+	"github.com/warpfork/go-testmark"
 )
 
 // We don't implement writing to hunks through this interface so everything is read-only
 const defaultFileMode fs.FileMode = 0444
-
-// MultiDoc allows combining multiple documents into a single entity for ease of use.
-// This can be used to spread hunks across multiple real files or other sources.
-type MultiDoc struct {
-	// DocByHunkName allows you to get back to the original document for a hunk.
-	// This would be necessary for the patching features and any other time you need
-	// features of the original document
-	DocByHunkName map[string]*Document
-	// Document that stores the combined set of hunks
-	// Original and Lines will not be relevant in this case
-	Document
-}
-
-// Add will combine the given Document with this MultiDoc.
-// If a duplicate hunk is found, an fs.PathError will be returned.
-// Add will check for duplicates before mutating the MultiDoc; however, this is NOT threadsafe.
-// Add will not mutate the given Document.
-func (d *MultiDoc) Add(doc *Document) error {
-	if d.DocByHunkName == nil {
-		d.DocByHunkName = make(map[string]*Document)
-	}
-	if d.Document.DataHunks == nil {
-		d.Document.HunksByName = make(map[string]DocHunk)
-	}
-	for _, hunk := range doc.DataHunks {
-		// Guard against mutating a DocFS that already has hunks of a particular name
-		// TODO: add merge strategies to allow overwrite
-		if _, exists := d.HunksByName[hunk.Name]; exists {
-			return &fs.PathError{Op: "add", Path: hunk.Name, Err: fs.ErrExist}
-		}
-	}
-	for _, hunk := range doc.DataHunks {
-		d.DocByHunkName[hunk.Name] = doc
-		d.HunksByName[hunk.Name] = hunk
-		d.DataHunks = append(d.DataHunks, hunk)
-	}
-	return nil
-}
 
 // File is a representation of DirEnt used when working with Documents as an fs.FS
 // Generally this is done by calling Document.Open or using a function from the fs package.
@@ -59,7 +25,7 @@ type File struct {
 	childIdx int
 	// children sorted by name
 	childrenSorted []string
-	children       map[string]*DirEnt
+	children       map[string]*testmark.DirEnt
 }
 
 // Name returns the name of the file (or subdirectory) described by the entry.
@@ -126,7 +92,7 @@ func (f *File) readDir(children ...string) ([]fs.DirEntry, error) {
 		if !exists {
 			return []fs.DirEntry{}, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrNotExist}
 		}
-		result = append(result, child.file())
+		result = append(result, file(child))
 	}
 	return result, nil
 }
@@ -182,6 +148,12 @@ func (s fileStat) Sys() interface{} {
 	return s.sys
 }
 
+type fsimpl testmark.Document
+
+func DocFs(doc *testmark.Document) fs.FS {
+	return (*fsimpl)(doc)
+}
+
 // Open opens the named hunk or a directory path.
 // Open does not follow relative paths such as .. or .
 //
@@ -193,22 +165,23 @@ func (s fileStat) Sys() interface{} {
 // Opening an empty path will return the root directory for the document.
 // This is different than the fs.ValidPath special case of using "." as the root path.
 // The testmark document treats "." and ".." the same as any other character.
-func (doc *Document) Open(name string) (fs.File, error) {
+func (f *fsimpl) Open(name string) (fs.File, error) {
+	doc := (*testmark.Document)(f)
 	if doc.DirEnt == nil {
 		doc.BuildDirIndex()
 	}
 	if name == "" {
-		return doc.DirEnt.file(), nil
+		return file(doc.DirEnt), nil
 	}
-	ent := findDir(doc.DirEnt, splitpath(name)...)
+	ent := findDir(doc.DirEnt, strings.Split(name, testmark.HunkPathSeparator)...)
 	if ent == nil {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 	}
-	return ent.file(), nil
+	return file(ent), nil
 }
 
 // file returns the File representation of a DirEnt.
-func (d *DirEnt) file() *File {
+func file(d *testmark.DirEnt) *File {
 	size := int64(0)
 	buf := bytes.NewBuffer([]byte{})
 	if d.Hunk != nil {
@@ -242,7 +215,7 @@ func (d *DirEnt) file() *File {
 
 // findDir will traverse down a DirEnt by each path split and return a DirEnt for that path if it exists.
 // Otherwise, findDir will return nil.
-func findDir(dir *DirEnt, pathsplits ...string) *DirEnt {
+func findDir(dir *testmark.DirEnt, pathsplits ...string) *testmark.DirEnt {
 	if len(pathsplits) == 0 {
 		return dir
 	}

@@ -1,4 +1,4 @@
-package testmark_test
+package fs_test
 
 import (
 	"fmt"
@@ -10,26 +10,27 @@ import (
 	qt "github.com/frankban/quicktest"
 
 	"github.com/warpfork/go-testmark"
+	tmfs "github.com/warpfork/go-testmark/fs"
 )
 
 // Assert the implementation of various interfaces in the "fs" package
 var (
-	_ fs.DirEntry    = &testmark.File{}
-	_ fs.File        = &testmark.File{}
-	_ fs.FS          = &testmark.Document{}
-	_ fs.ReadDirFile = &testmark.File{}
+	_ fs.DirEntry    = &tmfs.File{}
+	_ fs.File        = &tmfs.File{}
+	_ fs.ReadDirFile = &tmfs.File{}
 )
 
 // TestFS tests some basic assertions about the *Document implementation of the fs.FS interface
 func TestFS(t *testing.T) {
-	testdata, err := filepath.Abs("testdata")
+	testdata, err := filepath.Abs("../testdata")
 	qt.Assert(t, err, qt.IsNil)
 
 	doc, err := testmark.ReadFile(filepath.Join(testdata, "example.md"))
 	qt.Assert(t, err, qt.IsNil)
+	dfs := tmfs.DocFs(doc)
 
 	t.Run("open dot path", func(t *testing.T) {
-		f, err := doc.Open(".")
+		f, err := dfs.Open(".")
 		pathErr := new(fs.PathError)
 		if qt.Check(t, err, qt.ErrorAs, &pathErr) {
 			qt.Assert(t, pathErr.Op, qt.Equals, "open")
@@ -40,7 +41,7 @@ func TestFS(t *testing.T) {
 	})
 
 	t.Run("open empty path", func(t *testing.T) {
-		f, err := doc.Open("")
+		f, err := dfs.Open("")
 		qt.Assert(t, err, qt.IsNil)
 		s, err := f.Stat()
 		qt.Assert(t, err, qt.IsNil)
@@ -50,34 +51,38 @@ func TestFS(t *testing.T) {
 }
 
 func TestFSGlob(t *testing.T) {
-	testdata, err := filepath.Abs("testdata")
+	testdata, err := filepath.Abs("../testdata")
 	qt.Assert(t, err, qt.IsNil)
 
 	doc, err := testmark.ReadFile(filepath.Join(testdata, "exampleWithDirs.md"))
 	qt.Assert(t, err, qt.IsNil)
+	dfs := tmfs.DocFs(doc)
 
-	matches, err := fs.Glob(doc, "one/t*")
+	matches, err := fs.Glob(dfs, "one/t*")
 	qt.Assert(t, err, qt.IsNil)
 	qt.Assert(t, matches, qt.DeepEquals, []string{"one/three", "one/two"})
 }
 
 func TestFSReadFile(t *testing.T) {
-	testdata, err := filepath.Abs("testdata")
+	testdata, err := filepath.Abs("../testdata")
 	qt.Assert(t, err, qt.IsNil)
 
 	doc, err := testmark.ReadFile(filepath.Join(testdata, "exampleWithDirs.md"))
 	qt.Assert(t, err, qt.IsNil)
+	dfs := tmfs.DocFs(doc)
 
-	data, err := fs.ReadFile(doc, "one")
+	data, err := fs.ReadFile(dfs, "one")
 	qt.Assert(t, err, qt.IsNil)
 	qt.Assert(t, string(data), qt.Equals, "baz\n")
 }
 
-func ExampleWalkDocument() {
-	testdata, _ := filepath.Abs("testdata")
+func ExampleWalkDir() {
+	testdata, _ := filepath.Abs("../testdata")
 	doc, _ := testmark.ReadFile(filepath.Join(testdata, "example.md"))
+	dfs := tmfs.DocFs(doc)
+
 	counter := 0
-	fs.WalkDir(doc, "", func(path string, dir fs.DirEntry, err error) error {
+	fs.WalkDir(dfs, "", func(path string, dir fs.DirEntry, err error) error {
 		fmt.Printf("%d: %q\n", counter, path)
 		counter++
 		return nil
@@ -90,9 +95,11 @@ func ExampleWalkDocument() {
 }
 
 func ExampleRead() {
-	testdata, _ := filepath.Abs("testdata")
+	testdata, _ := filepath.Abs("../testdata")
 	doc, _ := testmark.ReadFile(filepath.Join(testdata, "example.md"))
-	f, _ := doc.Open("more-data")
+	dfs := tmfs.DocFs(doc)
+	f, _ := dfs.Open("more-data")
+
 	content, _ := io.ReadAll(f)
 	fmt.Print(string(content))
 	// Output:
@@ -102,9 +109,11 @@ func ExampleRead() {
 }
 
 func ExampleReadDirFile() {
-	testdata, _ := filepath.Abs("testdata")
+	testdata, _ := filepath.Abs("../testdata")
 	doc, _ := testmark.ReadFile(filepath.Join(testdata, "example.md"))
-	f, _ := doc.Open("")
+	dfs := tmfs.DocFs(doc)
+
+	f, _ := dfs.Open("")
 	fr := f.(fs.ReadDirFile)
 	dirs, _ := fr.ReadDir(-1)
 	for i, d := range dirs {
@@ -120,20 +129,21 @@ func ExampleReadDirFile() {
 // A directory will return true on IsDir
 // A file with data will have a non-zero size
 func ExampleIsItAFileOrADirectory() {
-	testdata, _ := filepath.Abs("testdata")
+	testdata, _ := filepath.Abs("../testdata")
 	doc, _ := testmark.ReadFile(filepath.Join(testdata, "exampleWithDirs.md"))
+	dfs := tmfs.DocFs(doc)
 	{
-		f, _ := doc.Open("")
+		f, _ := dfs.Open("")
 		stat, _ := f.Stat()
 		fmt.Printf("the root dir is not a file: %q,%d,%t\n", stat.Name(), stat.Size(), stat.IsDir())
 	}
 	{
-		f, _ := doc.Open("one")
+		f, _ := dfs.Open("one")
 		stat, _ := f.Stat()
 		fmt.Printf("this path is a dir AND a regular file: %q,%d,%t\n", stat.Name(), stat.Size(), stat.IsDir())
 	}
 	{
-		f, _ := doc.Open("one/four/bang")
+		f, _ := dfs.Open("one/four/bang")
 		stat, _ := f.Stat()
 		fmt.Printf("this path is a file but NOT a dir: %q,%d,%t\n", stat.Name(), stat.Size(), stat.IsDir())
 	}
@@ -144,9 +154,11 @@ func ExampleIsItAFileOrADirectory() {
 }
 
 func ExampleConvertFileToDirEnt() {
-	testdata, _ := filepath.Abs("testdata")
+	testdata, _ := filepath.Abs("../testdata")
 	doc, _ := testmark.ReadFile(filepath.Join(testdata, "example.md"))
-	f, _ := doc.Open("more-data")
+	dfs := tmfs.DocFs(doc)
+
+	f, _ := dfs.Open("more-data")
 	stat, _ := f.Stat()
 	ent := stat.Sys().(*testmark.DirEnt)
 	fmt.Print(string(ent.Hunk.Body))
@@ -159,11 +171,12 @@ func ExampleConvertFileToDirEnt() {
 // TestWalkDocument tests the implementation of fs.WalkDir against a Document
 func TestFSWalkDocument(t *testing.T) {
 	qt.Assert(t, fs.ValidPath("."), qt.IsTrue)
-	testdata, err := filepath.Abs("testdata")
+	testdata, err := filepath.Abs("../testdata")
 	qt.Assert(t, err, qt.IsNil)
 
 	doc, err := testmark.ReadFile(filepath.Join(testdata, "exampleWithDirs.md"))
 	qt.Assert(t, err, qt.IsNil)
+	dfs := tmfs.DocFs(doc)
 
 	type expectT struct {
 		path        string
@@ -198,12 +211,12 @@ func TestFSWalkDocument(t *testing.T) {
 		t.Fail()
 		return "✖"
 	}
-	err = fs.WalkDir(doc, "", func(path string, dir fs.DirEntry, err error) error {
+	err = fs.WalkDir(dfs, "", func(path string, dir fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		order := expected[orderIdx]
-		f, err := doc.Open(path)
+		f, err := dfs.Open(path)
 		qt.Assert(t, err, qt.IsNil)
 		content, err := io.ReadAll(f)
 		qt.Assert(t, err, qt.IsNil)
@@ -234,13 +247,14 @@ func TestFSWalkDocument(t *testing.T) {
 // This is a weird edge of object filesystems where pseudo-dirs and files can overlap.
 // We don't really have a great way of handling this. Just, some files are also directories. The end.
 func TestFSOpenFileDir(t *testing.T) {
-	testdata, err := filepath.Abs("testdata")
+	testdata, err := filepath.Abs("../testdata")
 	qt.Assert(t, err, qt.IsNil)
 
 	doc, err := testmark.ReadFile(filepath.Join(testdata, "exampleWithDirs.md"))
 	qt.Assert(t, err, qt.IsNil)
+	dfs := tmfs.DocFs(doc)
 
-	f, err := doc.Open("one")
+	f, err := dfs.Open("one")
 	qt.Assert(t, err, qt.IsNil)
 
 	data, err := io.ReadAll(f)
@@ -261,80 +275,4 @@ func TestFSOpenFileDir(t *testing.T) {
 	qt.Assert(t, stat.IsDir(), qt.IsTrue)
 	qt.Assert(t, stat.Name(), qt.Equals, "one")
 	qt.Assert(t, stat.Size(), qt.Equals, int64(len(data)))
-}
-
-func ExampleMultiDocumentFS() {
-	testdata, _ := filepath.Abs("testdata")
-	doc1, _ := testmark.ReadFile(filepath.Join(testdata, "exampleWithDirs.md"))
-	doc2, _ := testmark.ReadFile(filepath.Join(testdata, "example.md"))
-	doc := &testmark.MultiDoc{}
-	doc.Add(doc1) // ignoring errors
-	doc.Add(doc2) // ignoring errors
-	f, _ := doc.Open("")
-
-	fr := f.(fs.ReadDirFile)
-	dirs, _ := fr.ReadDir(-1)
-	for i, d := range dirs {
-		fmt.Printf("%d: %q\n", i, d.Name())
-	}
-	// Output:
-	// 0: "cannot-describe-no-linebreak"
-	// 1: "more-data"
-	// 2: "one"
-	// 3: "really"
-	// 4: "this-is-the-data-name"
-}
-
-func TestMultiDocumentFS(t *testing.T) {
-	testdata, err := filepath.Abs("testdata")
-	qt.Assert(t, err, qt.IsNil)
-
-	doc1, err := testmark.ReadFile(filepath.Join(testdata, "exampleWithDirs.md"))
-	qt.Assert(t, err, qt.IsNil)
-
-	doc2, err := testmark.ReadFile(filepath.Join(testdata, "example.md"))
-	qt.Assert(t, err, qt.IsNil)
-
-	t.Run("fails when adding twice", func(t *testing.T) {
-		doc := &testmark.MultiDoc{}
-		qt.Assert(t, doc.Add(doc1), qt.IsNil)
-		err := doc.Add(doc1)
-		pathErr := new(fs.PathError)
-		if qt.Check(t, err, qt.ErrorAs, &pathErr) {
-			qt.Assert(t, pathErr.Op, qt.Equals, "add")
-			qt.Assert(t, pathErr.Path, qt.Equals, "one/two")
-		}
-		qt.Assert(t, err, qt.ErrorIs, fs.ErrExist)
-	})
-
-	t.Run("combine documents", func(t *testing.T) {
-		doc := &testmark.MultiDoc{}
-		qt.Assert(t, doc.Add(doc1), qt.IsNil)
-		qt.Assert(t, doc.Add(doc2), qt.IsNil)
-		{
-
-			df1, err := doc1.Open("really/deep/dirs/wow")
-			qt.Assert(t, err, qt.IsNil)
-			mf1, err := doc.Open("really/deep/dirs/wow")
-			qt.Assert(t, err, qt.IsNil)
-			expect1, err := io.ReadAll(df1)
-			qt.Assert(t, err, qt.IsNil)
-			result1, err := io.ReadAll(mf1)
-			qt.Assert(t, err, qt.IsNil)
-			qt.Assert(t, string(result1), qt.Equals, string(expect1))
-			qt.Assert(t, string(result1), qt.Equals, "zot\n")
-		}
-		{
-			df2, err := doc2.Open("cannot-describe-no-linebreak")
-			qt.Assert(t, err, qt.IsNil)
-			mf2, err := doc.Open("cannot-describe-no-linebreak")
-			qt.Assert(t, err, qt.IsNil)
-			expect2, err := io.ReadAll(df2)
-			qt.Assert(t, err, qt.IsNil)
-			result2, err := io.ReadAll(mf2)
-			qt.Assert(t, err, qt.IsNil)
-			qt.Assert(t, string(result2), qt.Equals, string(expect2))
-			qt.Assert(t, string(result2), qt.Equals, string("A markdown codeblock always has a trailing linebreak before its close indicator, you see.\n"))
-		}
-	})
 }
