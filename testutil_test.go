@@ -22,6 +22,7 @@ import (
 // anything else relies on "%v".
 // It'll emit both the expected and actual values as strings if there's a mismatch.
 func assert(t *testing.T, actual interface{}, expect string) {
+	t.Helper()
 	var actualStr string
 	if s, ok := actual.(string); ok {
 		actualStr = s

@@ -139,22 +139,22 @@ func (tcfg *Tester) init() {
 // Regen mode will only update hunks that already exist; it won't add them.
 // As an edge case, note that if that an exitcode hunk is absent, but a nonzero exitcode is encountered,
 // the test will still be failed, even though in patch regen mode most assertions are usually skipped.
-func (tcfg Tester) TestSequence(t *testing.T, data testmark.DirEnt) {
+func (tcfg Tester) TestSequence(t *testing.T, data *testmark.DirEnt) {
 	t.Helper()
 	tcfg.test(t, data, true, false, "")
 }
 
-func (tcfg Tester) TestScript(t *testing.T, data testmark.DirEnt) {
+func (tcfg Tester) TestScript(t *testing.T, data *testmark.DirEnt) {
 	t.Helper()
 	tcfg.test(t, data, false, true, "")
 }
 
-func (tcfg Tester) Test(t *testing.T, data testmark.DirEnt) {
+func (tcfg Tester) Test(t *testing.T, data *testmark.DirEnt) {
 	t.Helper()
 	tcfg.test(t, data, true, true, "")
 }
 
-func (tcfg Tester) test(t *testing.T, data testmark.DirEnt, allowExec, allowScript bool, parentTmpdir string) {
+func (tcfg Tester) test(t *testing.T, data *testmark.DirEnt, allowExec, allowScript bool, parentTmpdir string) {
 	t.Helper()
 	tcfg.init()
 
