@@ -311,6 +311,14 @@ See that package for more details!
 
 
 
+Changelog
+---------
+
+Mostly the go-testmark package has been remarkly stable.  There are a series of tagged releases, but mostly they are small feature additions.  Using the latest version is always best.
+
+There's one exception: in `v0.11.0` we do have an API change.  One type gained a pointer, which was previously mostly passed by struct.  If you update code across that version, you may find you also need to add some asterisks: `DirEnt` -> `*DirEnt`.  For many usages, though, the change may not appear syntactically at all (the `:=` often covers up where it might have been necessary!).
+
+
 License
 -------
 
