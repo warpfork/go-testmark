@@ -307,8 +307,8 @@ and a hunk called `mytest/output` and put the expected output in it, and you're 
 There's a bunch more features too, like ways to check exit codes,
 ways to check stdout and stderr streams separately,
 ways to populate fixture filesystems (using hunks like `mytest/fs/dirname/filename.ext`), etc.
-See that package for more details!
 
+See that package, and its additional README, for more details!
 
 
 Changelog
