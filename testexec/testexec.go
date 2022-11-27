@@ -163,40 +163,22 @@ func (tcfg Tester) test(t *testing.T, data *testmark.DirEnt, allowExec, allowScr
 	sequenceHunk, sequenceMode := data.Children["sequence"]
 	scriptHunk, scriptMode := data.Children["script"]
 	if !sequenceMode && !scriptMode {
-		t.Logf("dir %q does not contain a 'script' or 'sequence' hunk", data.Path)
-		if tcfg.DisableStrictMode {
-			t.SkipNow()
-		}
-		t.FailNow()
+		tcfg.skipOrFailStrictlyf(t, "dir %q does not contain a 'script' or 'sequence' hunk", data.Path)
 	}
 	if sequenceMode && scriptMode {
-		t.Logf("dir %q contained both a 'script' and a 'sequence' hunk, which is nonsensical", data.Path)
-		if tcfg.DisableStrictMode {
-			t.SkipNow()
-		}
-		t.FailNow()
+		tcfg.skipOrFailStrictlyf(t, "dir %q contained both a 'script' and a 'sequence' hunk, which is nonsensical", data.Path)
 	}
 	if sequenceMode && !allowExec {
-		t.Log("found sequence hunk but the test framework was invoked without permission to run those")
-		if tcfg.DisableStrictMode {
-			t.SkipNow()
-		}
-		t.FailNow()
+		tcfg.skipOrFailStrictlyf(t, "found sequence hunk but the test framework was invoked without permission to run those")
 	}
 	if scriptMode && !allowScript {
-		t.Log("found script hunk but the test framework was invoked without permission to run those")
-		if tcfg.DisableStrictMode {
-			t.SkipNow()
-		}
-		t.FailNow()
+		tcfg.skipOrFailStrictlyf(t, "found script hunk but the test framework was invoked without permission to run those")
 	}
 	if *testmark.Regen && tcfg.Patches == nil {
-		t.Logf("testmark.regen mode engaged, but there is no patch accumulator available here")
-		t.Logf("nothing to do if requested to regenerate test fixtures but have nowhere to put data")
-		if tcfg.DisableStrictMode {
-			t.SkipNow()
-		}
-		t.FailNow()
+		tcfg.skipOrFailStrictlyf(t, "%s\n%s",
+			"testmark.regen mode engaged, but there is no patch accumulator available here",
+			"nothing to do if requested to regenerate test fixtures but have nowhere to put data",
+		)
 	}
 
 	// Create a tempdir, and fill it with any files.
@@ -335,11 +317,7 @@ func (tcfg Tester) recurse(t *testing.T, data *testmark.DirEnt, allowExec bool, 
 		}
 		t.Run(child.Name, func(t *testing.T) {
 			if len(child.Name) <= 5 || !strings.HasPrefix(child.Name, "then-") {
-				t.Logf("%q does not begin with %q", child.Name, "then-")
-				if tcfg.DisableStrictMode {
-					t.SkipNow()
-				}
-				t.FailNow()
+				tcfg.skipOrFailStrictlyf(t, "%q does not begin with %q", child.Name, "then-")
 			}
 			if alreadyFailed {
 				// This comes after the recursion test because a file structure error should still fail
@@ -348,6 +326,16 @@ func (tcfg Tester) recurse(t *testing.T, data *testmark.DirEnt, allowExec bool, 
 			tcfg.test(t, child, allowExec, allowScript, parentTmpDir)
 		})
 	}
+}
+
+func (tcfg Tester) skipOrFailStrictlyf(t *testing.T, format string, args ...interface{}) {
+	if format != "" || len(args) > 0 {
+		t.Logf(format, args...)
+	}
+	if tcfg.DisableStrictMode {
+		t.SkipNow()
+	}
+	t.FailNow()
 }
 
 // Hash Table of all the "special" nodes used by testexec.
