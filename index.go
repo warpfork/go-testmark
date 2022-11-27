@@ -4,6 +4,8 @@ import (
 	"strings"
 )
 
+const HunkPathSeparator = "/"
+
 // BuildDirIndex mutates the Document to set the DirEnt field.
 //
 // The order of ChildrenList in the DirEnt
@@ -16,7 +18,7 @@ import (
 func (doc *Document) BuildDirIndex() {
 	doc.DirEnt = &DirEnt{}
 	for _, hunk := range doc.DataHunks {
-		doc.DirEnt.fill(strings.Split(hunk.Name, "/"), 0, hunk.Hunk)
+		doc.DirEnt.fill(strings.Split(hunk.Name, HunkPathSeparator), 0, hunk.Hunk)
 	}
 }
 
@@ -36,7 +38,7 @@ func (dirent *DirEnt) fill(pathSegs []string, pathIdx int, hunk Hunk) {
 	l := len(dirent.ChildrenList)
 	dirent.ChildrenList = append(dirent.ChildrenList, &DirEnt{
 		Name: pathSegs[pathIdx],
-		Path: strings.Join(pathSegs[:pathIdx+1], "/"),
+		Path: strings.Join(pathSegs[:pathIdx+1], HunkPathSeparator),
 	})
 	dirent.Children[pathSegs[pathIdx]] = dirent.ChildrenList[l]
 	dirent.ChildrenList[l].fill(pathSegs, pathIdx+1, hunk)
