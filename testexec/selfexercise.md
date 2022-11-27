@@ -99,3 +99,4 @@ cat - | sed 's/ is/ was/'  | sed s/will/should/
 ```
 this was stdin and should be echoed
 ```
+

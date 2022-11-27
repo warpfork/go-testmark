@@ -68,6 +68,8 @@ type Tester struct {
 	AssertFn
 
 	Patches *testmark.PatchAccumulator
+	// Will allow unrecognized directory structures.
+	DisableStrictMode bool
 }
 
 func (tcfg *Tester) init() {
@@ -161,21 +163,22 @@ func (tcfg Tester) test(t *testing.T, data *testmark.DirEnt, allowExec, allowScr
 	sequenceHunk, sequenceMode := data.Children["sequence"]
 	scriptHunk, scriptMode := data.Children["script"]
 	if !sequenceMode && !scriptMode {
-		return
+		tcfg.skipOrFailStrictlyf(t, "dir %q does not contain a 'script' or 'sequence' hunk", data.Path)
 	}
 	if sequenceMode && scriptMode {
-		t.Logf("warning: dir %q contained both a 'script' and a 'sequence' hunk, which is nonsensical", data.Name)
-		t.SkipNow()
+		tcfg.skipOrFailStrictlyf(t, "dir %q contained both a 'script' and a 'sequence' hunk, which is nonsensical", data.Path)
 	}
 	if sequenceMode && !allowExec {
-		t.Skipf("found sequence hunk but the test framework was invoked without permission to run those")
+		tcfg.skipOrFailStrictlyf(t, "found sequence hunk but the test framework was invoked without permission to run those")
 	}
 	if scriptMode && !allowScript {
-		t.Skipf("found script hunk but the test framework was invoked without permission to run those")
+		tcfg.skipOrFailStrictlyf(t, "found script hunk but the test framework was invoked without permission to run those")
 	}
 	if *testmark.Regen && tcfg.Patches == nil {
-		t.Logf("warning: testmark.regen mode engaged, but there is no patch accumulator available here")
-		t.Skipf("nothing to do if requested to regenerate test fixtures but have nowhere to put data")
+		tcfg.skipOrFailStrictlyf(t, "%s\n%s",
+			"testmark.regen mode engaged, but there is no patch accumulator available here",
+			"nothing to do if requested to regenerate test fixtures but have nowhere to put data",
+		)
 	}
 
 	// Create a tempdir, and fill it with any files.
@@ -250,14 +253,17 @@ func (tcfg Tester) test(t *testing.T, data *testmark.DirEnt, allowExec, allowScr
 	// Do the thing.
 	switch {
 	case sequenceMode:
+		t.Logf("exec: %q", sequenceHunk.Hunk.Name)
 		exitcode = tcfg.doSequence(t, sequenceHunk.Hunk, stdin, stdout, stderr)
 	case scriptMode:
+		t.Logf("exec: %q", scriptHunk.Hunk.Name)
 		exitcode = tcfg.doScript(t, scriptHunk.Hunk, stdin, stdout, stderr)
 	}
 
 	// Okay, comparisons time.
 	// Or, regen time!
 	if ent, exists := data.Children["output"]; exists {
+		// stdout buffer should be prepared to be both stdout and stderr earlier before execution.
 		bs := stdout.(*bytes.Buffer).Bytes()
 		if *testmark.Regen {
 			tcfg.Patches.AppendPatchIfBodyDiffers(*ent.Hunk, bs)
@@ -299,21 +305,49 @@ func (tcfg Tester) test(t *testing.T, data *testmark.DirEnt, allowExec, allowScr
 		}
 	})
 
-	// Look for "then-*" dirs.
-	//  If we're already failed -- make the run block, but skip it.
-	//  If we're going to procede: make a new tempdir, copy the contents, and then procede by recursing.
-	for _, child := range data.ChildrenList {
-		if len(child.Name) > 5 && strings.HasPrefix(child.Name, "then-") {
-			alreadyFailed := t.Failed()
-			t.Run(child.Name, func(t *testing.T) {
-				if alreadyFailed {
-					t.Skipf("parent commands failed, so while more commands are specified, testing them is not meaningful")
-				}
-				tcfg.test(t, child, allowExec, allowScript, dir)
-			})
-		}
-	}
+	tcfg.recurse(t, data, allowExec, allowScript, dir)
+}
 
+func (tcfg Tester) recurse(t *testing.T, data *testmark.DirEnt, allowExec bool, allowScript bool, parentTmpDir string) {
+	alreadyFailed := t.Failed()
+	for _, child := range data.ChildrenList {
+		if _, exists := leafNodeTable[child.Name]; exists {
+			t.Logf("%s will not recurse into special leaf node %q", t.Name(), child.Name)
+			continue
+		}
+		t.Run(child.Name, func(t *testing.T) {
+			if len(child.Name) <= 5 || !strings.HasPrefix(child.Name, "then-") {
+				tcfg.skipOrFailStrictlyf(t, "%q does not begin with %q", child.Name, "then-")
+			}
+			if alreadyFailed {
+				// This comes after the recursion test because a file structure error should still fail
+				t.Skipf("parent commands failed, so while more commands are specified, testing them is not meaningful")
+			}
+			tcfg.test(t, child, allowExec, allowScript, parentTmpDir)
+		})
+	}
+}
+
+func (tcfg Tester) skipOrFailStrictlyf(t *testing.T, format string, args ...interface{}) {
+	if format != "" || len(args) > 0 {
+		t.Logf(format, args...)
+	}
+	if tcfg.DisableStrictMode {
+		t.SkipNow()
+	}
+	t.FailNow()
+}
+
+// Hash Table of all the "special" nodes used by testexec.
+var leafNodeTable = map[string]struct{}{
+	"exitcode": {},
+	"stderr":   {},
+	"stdout":   {},
+	"output":   {},
+	"input":    {},
+	"sequence": {},
+	"script":   {},
+	"fs":       {},
 }
 
 func (tcfg Tester) doSequence(t *testing.T, hunk *testmark.Hunk, stdin io.Reader, stdout, stderr io.Writer) (exitcode int) {
