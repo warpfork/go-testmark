@@ -86,6 +86,7 @@ func Parse(data []byte) (*Document, error) {
 			// ... Log a complaint?  I don't think halting with a parse error would be helpful.
 			// But definitely don't wait around for arbitrarily distant code blocks.
 			expectCodeBlock = false
+			hunkInProgress = DocHunk{LineStart: -1}
 		}
 		// Look for testmark block indicators.
 		if bytes.HasPrefix(line, sigilTestmark) {

@@ -94,8 +94,11 @@ func TestParseTrailingExtraLineBreak(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hunk := doc.HunksByName["extra/newline"]
-	assert(t, hunk.Body, "foo\n")
+	hunk, exists := doc.HunksByName["extra/newline"]
+	if exists {
+		t.Errorf("testmark should ignore these")
+	}
+	assert(t, hunk.Body, "")
 }
 
 func TestDuplicateHunk(t *testing.T) {
