@@ -92,6 +92,9 @@ func Parse(data []byte) (*Document, error) {
 			// If this line, after the sigil prefix, doesn't begin with "(" and end with ")", it's not a well-formed markdown comment, and you should probably be told about that.
 			remainder := line[len(sigilTestmark):]
 			if len(remainder) < 2 || remainder[0] != '(' || remainder[len(remainder)-1] != ')' {
+				if unicode.IsSpace(rune(remainder[len(remainder)-1])) {
+					return &doc, fmt.Errorf("invalid markdown comment on line %d (should look like %q; remove trailing whitespace)", i+1, "[testmark]:# (data-name-here)")
+				}
 				return &doc, fmt.Errorf("invalid markdown comment on line %d (should look like %q, mind the parens)", i+1, "[testmark]:# (data-name-here)")
 			}
 			remainder = remainder[1 : len(remainder)-1]
