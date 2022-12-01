@@ -77,16 +77,13 @@ func Parse(data []byte) (*Document, error) {
 			inCodeBlock = !inCodeBlock
 			goto next
 		}
-		// If we're in a code block, just fly by.
 		if inCodeBlock {
+			// If we're in a code block, just fly by.
 			goto next
 		}
-		// If we were expecting a code block just now, we didn't get it.
 		if expectCodeBlock {
-			// ... Log a complaint?  I don't think halting with a parse error would be helpful.
-			// But definitely don't wait around for arbitrarily distant code blocks.
-			expectCodeBlock = false
-			hunkInProgress = DocHunk{LineStart: -1}
+			// If we were expecting a code block just now, we didn't get it.
+			return &doc, fmt.Errorf("invalid markdown comment on line %d. Missing code block for hunk %s", i+1, hunkInProgress.Name)
 		}
 		// Look for testmark block indicators.
 		if bytes.HasPrefix(line, sigilTestmark) {

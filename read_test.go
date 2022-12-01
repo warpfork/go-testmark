@@ -91,9 +91,7 @@ func TestParseTrailingExtraLineBreak(t *testing.T) {
 	fmt.Fprintln(buf, "foo")
 	fmt.Fprintln(buf, "```")
 	doc, err := testmark.Parse(buf.Bytes())
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert(t, err.Error(), `invalid markdown comment on line 2. Missing code block for hunk extra/newline`)
 	hunk, exists := doc.HunksByName["extra/newline"]
 	if exists {
 		t.Errorf("testmark should ignore these")
