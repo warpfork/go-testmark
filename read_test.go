@@ -2,6 +2,7 @@ package testmark_test
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"regexp"
@@ -54,6 +55,48 @@ func TestParseCRLF(t *testing.T) {
 	}
 
 	readFixturesExample(t, doc)
+}
+
+func TestParseSimple(t *testing.T) {
+	buf := bytes.NewBuffer([]byte{})
+	fmt.Fprintln(buf, "[testmark]:# (simple)")
+	fmt.Fprintln(buf, "```")
+	fmt.Fprintln(buf, "Hello, World!")
+	fmt.Fprintln(buf, "```")
+	doc, err := testmark.Parse(buf.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	hunk := doc.HunksByName["simple"]
+	assert(t, hunk.Body, "Hello, World!\n")
+}
+
+func TestParseTrailingWhitespace(t *testing.T) {
+	buf := bytes.NewBuffer([]byte{})
+	fmt.Fprintln(buf, "[testmark]:# (trailing/whitespace) ")
+	fmt.Fprintln(buf, "```")
+	fmt.Fprintln(buf, "foo")
+	fmt.Fprintln(buf, "```")
+	doc, err := testmark.Parse(buf.Bytes())
+	assert(t, err.Error(), `invalid markdown comment on line 1 (should look like "[testmark]:# (data-name-here)"; remove trailing whitespace)`)
+	_, exists := doc.HunksByName["trailing/whitespace"]
+	if exists {
+		t.Errorf("hunk should not exist")
+	}
+}
+
+func TestParseTrailingExtraLineBreak(t *testing.T) {
+	buf := bytes.NewBuffer([]byte("[testmark]:# (extra/newline)\n\n"))
+	fmt.Fprintln(buf, "```")
+	fmt.Fprintln(buf, "foo")
+	fmt.Fprintln(buf, "```")
+	doc, err := testmark.Parse(buf.Bytes())
+	assert(t, err.Error(), `invalid markdown comment on line 2. Missing code block for hunk extra/newline`)
+	hunk, exists := doc.HunksByName["extra/newline"]
+	if exists {
+		t.Errorf("testmark should ignore these")
+	}
+	assert(t, hunk.Body, "")
 }
 
 func TestDuplicateHunk(t *testing.T) {

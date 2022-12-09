@@ -77,21 +77,22 @@ func Parse(data []byte) (*Document, error) {
 			inCodeBlock = !inCodeBlock
 			goto next
 		}
-		// If we're in a code block, just fly by.
 		if inCodeBlock {
+			// If we're in a code block, just fly by.
 			goto next
 		}
-		// If we were expecting a code block just now, we didn't get it.
 		if expectCodeBlock {
-			// ... Log a complaint?  I don't think halting with a parse error would be helpful.
-			// But definitely don't wait around for arbitrarily distant code blocks.
-			expectCodeBlock = false
+			// If we were expecting a code block just now, we didn't get it.
+			return &doc, fmt.Errorf("invalid markdown comment on line %d. Missing code block for hunk %s", i+1, hunkInProgress.Name)
 		}
 		// Look for testmark block indicators.
 		if bytes.HasPrefix(line, sigilTestmark) {
 			// If this line, after the sigil prefix, doesn't begin with "(" and end with ")", it's not a well-formed markdown comment, and you should probably be told about that.
 			remainder := line[len(sigilTestmark):]
 			if len(remainder) < 2 || remainder[0] != '(' || remainder[len(remainder)-1] != ')' {
+				if unicode.IsSpace(rune(remainder[len(remainder)-1])) {
+					return &doc, fmt.Errorf("invalid markdown comment on line %d (should look like %q; remove trailing whitespace)", i+1, "[testmark]:# (data-name-here)")
+				}
 				return &doc, fmt.Errorf("invalid markdown comment on line %d (should look like %q, mind the parens)", i+1, "[testmark]:# (data-name-here)")
 			}
 			remainder = remainder[1 : len(remainder)-1]
