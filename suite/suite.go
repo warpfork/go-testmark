@@ -92,7 +92,7 @@ type HunkGlob string
 // A globbing pattern can be used for both the filenames, and for what hunk labels
 // within the file should be handled.
 //
-// WorkWith can be called more than one time with the name filename, or with filename
+// WorkWith can be called more than one time with the same filename, or with filename
 // globs that cause the same files to be matched more than once.
 // In this case, the mapping of filenames and hunk globs to TestingPattern simply
 // continue to accumulate.
