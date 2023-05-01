@@ -103,7 +103,7 @@ func Patch(oldDoc *Document, hunks ...Hunk) (newDoc *Document) {
 }
 
 func appendHunkLines(lines [][]byte, hunkName string, hunkBlockTag string, hunkBodyLines [][]byte) [][]byte {
-	lines = append(lines, bytes.Join([][]byte{sigilTestmark, []byte{'('}, []byte(hunkName), []byte{')'}}, nil))
+	lines = append(lines, bytes.Join([][]byte{sigilTestmark, {'('}, []byte(hunkName), {')'}}, nil))
 	lines = append(lines, bytes.Join([][]byte{sigilCodeBlock, []byte(hunkBlockTag)}, nil))
 	lines = append(lines, hunkBodyLines...)
 	lines = append(lines, sigilCodeBlock)
