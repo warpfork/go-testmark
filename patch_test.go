@@ -11,6 +11,9 @@ func TestPatch(t *testing.T) {
 		panic(err)
 	}
 	doc, err := ReadFile(filepath.Join(testdata, "example.md"))
+	if err != nil {
+		panic(err)
+	}
 	doc = Patch(doc,
 		Hunk{Name: "more-data", InfoString: "text", Body: []byte("you have been...\nreplaced.\nand gotten\nrather longer.")},
 		Hunk{Name: "this-is-the-data-name", InfoString: "", Body: []byte("this one gets shorter.")},
