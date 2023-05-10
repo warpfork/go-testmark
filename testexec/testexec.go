@@ -60,7 +60,9 @@ type AssertFn func(t *testing.T, actual, expect string)
 //
 // The 'Patches' accumulator will be used to gather new fixture data if `testmark.Regen` is true.
 // (If the pointer is nil, a warning will be logged.)
-// It is the user's responsibility to actually apply the patches and save the updated document.
+// If the NewSuiteTester constructor is used, `Patches` will be wired and handled automatically.
+// Otherwise, if `Patches` is handled manually, it becomes the user's responsibility
+// to actually apply the patches and save the updated document.
 type Tester struct {
 	ExecFn
 	ScriptFn
@@ -68,8 +70,9 @@ type Tester struct {
 	AssertFn
 
 	Patches *testmark.PatchAccumulator
-	// Will allow unrecognized directory structures.
-	DisableStrictMode bool
+
+	reportUse     func(string)         // Used to wire with suite, if you use NewSuiteTester.
+	reportUnrecog func(string, string) // Used to wire with suite, if you use NewSuiteTester.
 }
 
 func (tcfg *Tester) init() {
@@ -81,6 +84,12 @@ func (tcfg *Tester) init() {
 	}
 	if tcfg.AssertFn == nil {
 		tcfg.AssertFn = defaultAssertFn
+	}
+	if tcfg.reportUse == nil {
+		tcfg.reportUse = func(string) {}
+	}
+	if tcfg.reportUnrecog == nil {
+		tcfg.reportUnrecog = func(string, string) {}
 	}
 }
 
@@ -163,19 +172,19 @@ func (tcfg Tester) test(t *testing.T, data *testmark.DirEnt, allowExec, allowScr
 	sequenceHunk, sequenceMode := data.Children["sequence"]
 	scriptHunk, scriptMode := data.Children["script"]
 	if !sequenceMode && !scriptMode {
-		tcfg.skipOrFailStrictlyf(t, "dir %q does not contain a 'script' or 'sequence' hunk", data.Path)
+		t.Fatalf("dir %q does not contain a 'script' or 'sequence' hunk", data.Path)
 	}
 	if sequenceMode && scriptMode {
-		tcfg.skipOrFailStrictlyf(t, "dir %q contained both a 'script' and a 'sequence' hunk, which is nonsensical", data.Path)
+		t.Fatalf("dir %q contained both a 'script' and a 'sequence' hunk, which is nonsensical", data.Path)
 	}
 	if sequenceMode && !allowExec {
-		tcfg.skipOrFailStrictlyf(t, "found sequence hunk but the test framework was invoked without permission to run those")
+		t.Fatalf("found sequence hunk but the test framework was invoked without permission to run those")
 	}
 	if scriptMode && !allowScript {
-		tcfg.skipOrFailStrictlyf(t, "found script hunk but the test framework was invoked without permission to run those")
+		t.Fatalf("found script hunk but the test framework was invoked without permission to run those")
 	}
 	if *testmark.Regen && tcfg.Patches == nil {
-		tcfg.skipOrFailStrictlyf(t, "%s\n%s",
+		t.Fatalf("%s\n%s",
 			"testmark.regen mode engaged, but there is no patch accumulator available here",
 			"nothing to do if requested to regenerate test fixtures but have nowhere to put data",
 		)
@@ -194,30 +203,30 @@ func (tcfg Tester) test(t *testing.T, data *testmark.DirEnt, allowExec, allowScr
 		var err error
 		dir, err = ioutil.TempDir("", "testmarkexec")
 		if err != nil {
-			t.Errorf("test aborted: could not create tempdir: %s", err)
+			t.Fatalf("test aborted: could not create tempdir: %s", err)
 		}
 		defer os.RemoveAll(dir)
 		retreat, err := os.Getwd()
 		if err != nil {
-			t.Errorf("test aborted: could not find cwd: %s", err)
+			t.Fatalf("test aborted: could not find cwd: %s", err)
 		}
 		defer os.Chdir(retreat)
 		if err := os.Chdir(dir); err != nil {
-			t.Errorf("test aborted: could not chdir to tempdir: %s", err)
+			t.Fatalf("test aborted: could not chdir to tempdir: %s", err)
 		}
 
 		// If there was a parent tempdir: copy those files first.
 		if parentTmpdir != "" {
 			if err := copyFiles(parentTmpdir, dir); err != nil {
-				t.Errorf("test aborted: could not populate files to tempdir: %s", err)
+				t.Fatalf("test aborted: could not populate files to tempdir: %s", err)
 			}
 		}
 
 		// Create any new files.
 		fsEnt := data.Children["fs"]
 		if fsEnt != nil {
-			if err := createFiles(fsEnt, "."); err != nil {
-				t.Errorf("test aborted: could not populate files to tempdir: %s", err)
+			if err := tcfg.createFiles(fsEnt, "."); err != nil {
+				t.Fatalf("test aborted: could not populate files to tempdir: %s", err)
 			}
 		}
 	}
@@ -225,6 +234,7 @@ func (tcfg Tester) test(t *testing.T, data *testmark.DirEnt, allowExec, allowScr
 	// Prepare output buffers.
 	var stdout, stderr io.Writer
 	if _, exists := data.Children["output"]; exists {
+		tcfg.reportUse(data.Children["output"].Path)
 		stdout = &bytes.Buffer{}
 		stderr = stdout
 		if _, exists := data.Children["stdout"]; exists {
@@ -235,9 +245,11 @@ func (tcfg Tester) test(t *testing.T, data *testmark.DirEnt, allowExec, allowScr
 		}
 	}
 	if _, exists := data.Children["stdout"]; exists {
+		tcfg.reportUse(data.Children["stdout"].Path)
 		stdout = &bytes.Buffer{}
 	}
 	if _, exists := data.Children["stderr"]; exists {
+		tcfg.reportUse(data.Children["stderr"].Path)
 		stderr = &bytes.Buffer{}
 	}
 	var exitcode int
@@ -245,6 +257,7 @@ func (tcfg Tester) test(t *testing.T, data *testmark.DirEnt, allowExec, allowScr
 	// Prepare an input buffer, if applicable.
 	var stdin io.Reader
 	if ent := data.Children["input"]; ent != nil {
+		tcfg.reportUse(data.Children["input"].Path)
 		stdin = bytes.NewReader(ent.Hunk.Body)
 	} else {
 		stdin = bytes.NewReader(nil)
@@ -253,10 +266,10 @@ func (tcfg Tester) test(t *testing.T, data *testmark.DirEnt, allowExec, allowScr
 	// Do the thing.
 	switch {
 	case sequenceMode:
-		t.Logf("exec: %q", sequenceHunk.Hunk.Name)
+		tcfg.reportUse(sequenceHunk.Path)
 		exitcode = tcfg.doSequence(t, sequenceHunk.Hunk, stdin, stdout, stderr)
 	case scriptMode:
-		t.Logf("exec: %q", scriptHunk.Hunk.Name)
+		tcfg.reportUse(scriptHunk.Path)
 		exitcode = tcfg.doScript(t, scriptHunk.Hunk, stdin, stdout, stderr)
 	}
 
@@ -295,6 +308,7 @@ func (tcfg Tester) test(t *testing.T, data *testmark.DirEnt, allowExec, allowScr
 	}
 	t.Run("check-exitcode", func(t *testing.T) {
 		if ent, exists := data.Children["exitcode"]; exists {
+			tcfg.reportUse(data.Children["exitcode"].Path)
 			if *testmark.Regen {
 				tcfg.Patches.AppendPatchIfBodyDiffers(*ent.Hunk, []byte(strconv.Itoa(exitcode)))
 			} else {
@@ -312,12 +326,12 @@ func (tcfg Tester) recurse(t *testing.T, data *testmark.DirEnt, allowExec bool, 
 	alreadyFailed := t.Failed()
 	for _, child := range data.ChildrenList {
 		if _, exists := leafNodeTable[child.Name]; exists {
-			t.Logf("%s will not recurse into special leaf node %q", t.Name(), child.Name)
+			//t.Logf("%s will not recurse into special leaf node %q", t.Name(), child.Name)
 			continue
 		}
 		t.Run(child.Name, func(t *testing.T) {
 			if len(child.Name) <= 5 || !strings.HasPrefix(child.Name, "then-") {
-				tcfg.skipOrFailStrictlyf(t, "%q does not begin with %q", child.Name, "then-")
+				tcfg.reportUnrecog(child.Path, "a child test in testmark must be named beginning with \"then-\"")
 			}
 			if alreadyFailed {
 				// This comes after the recursion test because a file structure error should still fail
@@ -326,16 +340,6 @@ func (tcfg Tester) recurse(t *testing.T, data *testmark.DirEnt, allowExec bool, 
 			tcfg.test(t, child, allowExec, allowScript, parentTmpDir)
 		})
 	}
-}
-
-func (tcfg Tester) skipOrFailStrictlyf(t *testing.T, format string, args ...interface{}) {
-	if format != "" || len(args) > 0 {
-		t.Logf(format, args...)
-	}
-	if tcfg.DisableStrictMode {
-		t.SkipNow()
-	}
-	t.FailNow()
 }
 
 // Hash Table of all the "special" nodes used by testexec.
@@ -384,7 +388,8 @@ func (tcfg Tester) doScript(t *testing.T, hunk *testmark.Hunk, stdin io.Reader, 
 
 // createFiles makes files and directories matching testmark hunks.
 // It creates them relative to the os cwd plus prefix -- use with care.
-func createFiles(dir *testmark.DirEnt, prefix string) error {
+func (tcfg Tester) createFiles(dir *testmark.DirEnt, prefix string) error {
+	tcfg.reportUse(dir.Path)
 	if dir.Hunk != nil {
 		return ioutil.WriteFile(prefix, dir.Hunk.Body, 0644)
 	} else {
@@ -393,7 +398,7 @@ func createFiles(dir *testmark.DirEnt, prefix string) error {
 		}
 	}
 	for _, ent := range dir.Children {
-		if err := createFiles(ent, filepath.Join(prefix, ent.Name)); err != nil {
+		if err := tcfg.createFiles(ent, filepath.Join(prefix, ent.Name)); err != nil {
 			return err
 		}
 	}
