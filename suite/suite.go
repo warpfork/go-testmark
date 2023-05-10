@@ -49,6 +49,8 @@ type Manager struct {
 	fs fsx.FS
 
 	workset map[string]fileContentExpectations
+
+	disableFileParallelism bool
 }
 
 type fileContentExpectations struct {
@@ -142,6 +144,12 @@ func (sm *Manager) MustWorkWith(files FilenameGlob, hunks HunkGlob, action Testi
 	}
 }
 
+// DisableFileParallelism turns off the suite manager's default behavior of parallelizing
+// tests that are based on data from in different files.
+func (sm *Manager) DisableFileParallelism() {
+	sm.disableFileParallelism = true
+}
+
 // IgnoreUnrecognized tells the suite manager that if a hunk is reported as unrecognized or unused,
 // then it should be ignored instead of becoming an error.
 //
@@ -164,6 +172,7 @@ func (sm *Manager) MustWorkWith(files FilenameGlob, hunks HunkGlob, action Testi
 //
 // By default, each file that the suite works with will be handled in parallel,
 // and within each file, the hunks are handled in the order they appear.
+// Call DisableFileParallelism if that parallelism is undesired.
 //
 // Calling Run more than one time is nonsensical.
 func (sm *Manager) Run(t *testing.T) {
@@ -171,7 +180,9 @@ func (sm *Manager) Run(t *testing.T) {
 		filename := filename
 		fileContentExpectations := fileContentExpectations
 		t.Run(filename, func(t *testing.T) {
-			t.Parallel()
+			if !sm.disableFileParallelism {
+				t.Parallel()
+			}
 
 			// Open the file.
 			f, err := sm.fs.Open(filename)
@@ -251,6 +262,5 @@ func (sm *Manager) Run(t *testing.T) {
 				})
 			}
 		})
-
 	}
 }
