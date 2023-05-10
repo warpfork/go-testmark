@@ -75,24 +75,3 @@ func TestStrict(t *testing.T) {
 	}
 	patches.WriteFileWithPatches(doc, filename)
 }
-
-func TestStrictDisabled(t *testing.T) {
-	filename := "strictexercise.md"
-	doc, err := testmark.ReadFile(filename)
-	if err != nil {
-		t.Fatalf("spec file parse failed?!: %s", err)
-	}
-
-	doc.BuildDirIndex()
-	patches := testmark.PatchAccumulator{}
-	for _, dir := range doc.DirEnt.ChildrenList {
-		t.Run(dir.Name, func(t *testing.T) {
-			test := testexec.Tester{
-				Patches:           &patches,
-				DisableStrictMode: true,
-			}
-			test.TestScript(t, dir)
-		})
-	}
-	patches.WriteFileWithPatches(doc, filename)
-}

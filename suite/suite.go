@@ -75,8 +75,8 @@ type TestingPattern interface {
 		t *testing.T, // The standard testing object, for obvious purposes.
 		filename string, // The filename the subject data was loaded from.  Typically not needed (data comes in via `subject` and, if appropriate, can flow out through `patchAccum`).
 		subject *testmark.DirEnt, // The subject hunk (and enclosing dirent, in case you want to navigate to child hunks).
-		reportUse func(string), // Should be called with the full path of any hunk that's consumed by this test.  Used to detect orphaned hunks that went unused by the whole suite.
-		reportUnrecog func(string), // If this test code owns all child hunks, it may call this to report one that it doesn't recognize.
+		reportUse func(hunkPath string), // Should be called with the full path of any hunk that's consumed by this test.  Used to detect orphaned hunks that went unused by the whole suite.
+		reportUnrecog func(hunkPath string, reason string), // If this test code owns all child hunks, it may call this to report one that it doesn't recognize.
 		patchAccum *testmark.PatchAccumulator, // If non-nil, means regenerating golden master data is requested instead of testing.
 	) error // Run may return errors or call t.Fatal itself.
 
@@ -203,10 +203,10 @@ func (sm *SuiteManager) Run(t *testing.T) {
 
 			// Before we begin walking, prepare to remember which things are usedHunks... or explicitly flagged as unknown.
 			usedHunks := map[string]struct{}{}
-			unrecognizedHunks := map[string]struct{}{}
+			unrecognizedHunks := map[string]string{}
 			usedGlobs := map[HunkGlob]struct{}{}
 			reportUse := func(hunkName string) { usedHunks[hunkName] = struct{}{} }
-			reportUnrecog := func(hunkName string) { unrecognizedHunks[hunkName] = struct{}{} }
+			reportUnrecog := func(hunkName string, reason string) { unrecognizedHunks[hunkName] = reason }
 
 			// Range over the hunks, treating labels as if they're filesystem paths (e.g., "/" groups them).
 			// For every match, create a subtest with the hunk path as a name, and call the test pattern.
@@ -240,8 +240,8 @@ func (sm *SuiteManager) Run(t *testing.T) {
 							t.Errorf("hunk label %q in file %q was not used by any tests in this suite", hunkName, filename)
 						}
 					}
-					for _, hunkName := range unrecognizedHunks {
-						t.Errorf("hunk label %q in file %q was flagged as unrecognized by one of the tests in this suite", hunkName, filename)
+					for hunkName, reason := range unrecognizedHunks {
+						t.Errorf("hunk label %q in file %q was flagged as unrecognized by one of the tests in this suite -- reason: %s", hunkName, filename, reason)
 					}
 					for hunkGlob, _ := range fileContentExpectations.handlers {
 						if _, exists := usedGlobs[hunkGlob]; !exists {
