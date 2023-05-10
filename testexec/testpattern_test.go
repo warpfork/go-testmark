@@ -8,13 +8,13 @@ import (
 	"github.com/warpfork/go-testmark/testexec"
 )
 
-// Assert that our testingPattern type matches the suite.TestingPattern interface.
+// Assert that our SuiteTester type matches the suite.TestingFunctor interface.
 // By doing this in a "_test.go" file, we avoid importing the suite package in the testexec package.
-var _ suite.TestingPattern = testexec.SuiteTester{}
+var _ suite.TestingFunctor = testexec.SuiteTester{}
 
 func TestSuiteMode(t *testing.T) {
 	t.Run("selfexericse file", func(t *testing.T) {
-		sm := suite.NewSuiteManager(osfs.DirFS("."))
+		sm := suite.NewManager(osfs.DirFS("."))
 		sm.MustWorkWith("selfexercise.md", "*", testexec.NewSuiteTester(testexec.Tester{}))
 		sm.Run(t)
 	})
@@ -22,7 +22,7 @@ func TestSuiteMode(t *testing.T) {
 		if !(*RunFailTest) {
 			t.Skipf("%s requires %q flag to execute", t.Name(), "run-fail-test")
 		}
-		sm := suite.NewSuiteManager(osfs.DirFS("."))
+		sm := suite.NewManager(osfs.DirFS("."))
 		sm.MustWorkWith("strictexercise.md", "*", testexec.NewSuiteTester(testexec.Tester{}))
 		sm.Run(t)
 	})
